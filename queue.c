@@ -24,11 +24,12 @@ queue_t create_queue(int s) {
 
 void destroy_queue(queue_t* q) {
 	free(q->arr);
+	pthread_mutex_destory((q->mutex));
 }
 
 int pop_queue(queue_t* q) {
 	pthread_mutex_lock(&(q->mutex));
-	while (is_empty_queue(q))
+	while (q->len == 0)
 		pthread_cond_wait(&(q->cond), &(q->mutex));
 	int res = q->arr[q->tail];
 	q->tail = (q->tail + 1) % q->size;
@@ -38,18 +39,14 @@ int pop_queue(queue_t* q) {
 }
 
 void push_queue(queue_t* q, int x) {
+	pthread_mutex_lock(&(q->mutex));
 	if(q->len == q->size) {
 		fprintf(stderr, "Queue piena\n");
 		exit(EXIT_FAILURE);
 	}
-	pthread_mutex_lock(&(q->mutex));
 	q->arr[q->head] = x;
 	q->len++;
 	q->head = (q->head + 1) % q->size;
 	pthread_cond_signal(&(q->cond));
 	pthread_mutex_unlock(&(q->mutex));
-}
-
-bool is_empty_queue(queue_t* q) {
-	return q->len == 0;
 }

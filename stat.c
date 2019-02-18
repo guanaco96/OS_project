@@ -18,6 +18,7 @@ void update_stat(stat_set_t* sset, stat_t stat) {
 
  
 int print_stat(stat_set_t sset, const char* file_name) {
+    pthread_mutex_lock(&(sset->mutex));
     FILE * fp = fopen(file_name, "a");
     if(fp == NULL) {
 		perror("fopen");
@@ -43,5 +44,6 @@ int print_stat(stat_set_t sset, const char* file_name) {
 		return -1;
     }
     
+    pthread_mutex_unlock(&(sset->mutex));
     return 0;
 }

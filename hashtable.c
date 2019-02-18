@@ -32,6 +32,7 @@ int destroy_hash(hash_t* hash_table) {
 		return -1;
 	}
 	pthread_mutex_unlock(&(hash_table->mutex));
+	pthread_mutex_destroy(&(hash_table->mutex));
 	free(hash_table);
 	return 0;
 }

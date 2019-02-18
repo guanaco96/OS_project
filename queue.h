@@ -18,13 +18,14 @@
 #define QUEUE_H
 
 /**
- * @brief Rappresenta la nostra coda circolare
+ * @brief Rappresenta la nostra coda di lunghezza fissata
+ * 
  * @var *arr: array contenente gli elementi
  * @var size: massimo numero di elementi contenibili 
  * @var len: #(elementi contenuti)
  * @var tail: posizione di estrazione
  * @var head: posizione di inserimento
- * @var mutex, cond: rendono le operazioni sulla coda MT-safe
+ * @var mutex, cond: variabili di sincronizzazione
  */
 typedef struct queue_t {
 	int *arr;
@@ -65,11 +66,5 @@ int pop_queue(queue_t* q);
  */
 void push_queue(queue_t* q, int x);
 
-/**
- * @brief Funzione is_empty per una coda
- * @param q: Coda da controllare
- * @return true sse la coda è vuota
- */
-bool is_empty_queue(queue_t* q);
 
 #endif /* QUEUE_H */

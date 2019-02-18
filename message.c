@@ -1,4 +1,4 @@
- /**
+/**
  * @file  message.c
  * @brief Implementazione di message.h
  *
