@@ -1,0 +1,45 @@
+1) Inserire nel main. ACHTUNG: #define ha scope solo nel file corrente.
+
+definire una var globale char perror_arg[100]
+
+#define  SYSCALL(r, c, e) \
+	if((r = c) == -1) { perror(e); exit(EXIT_FAILURE);}
+
+------------------------------------------------------------------------------------------------------
+2) controllo finale anti-plagio KIT -- MIO -- FLAVIO
+
+------------------------------------------------------------------------------------------------------
+3) COPIARE SCRIPT IN BASH
+
+------------------------------------------------------------------------------------------------------
+4) lock.c contiene una versione più robusta delle system calls lock e unlock. IO ME NE SBATTERO' IL CAZZO.
+
+
+------------------------------------------------------------------------------------------------------
+5) creare un parser.[ch] e stat.[ch] come il tipo su GitHub
+
+
+------------------------------------------------------------------------------------------------------
+6) ULTIMA COSA DA FARE: inserire la gestione dei segnali
+
+------------------------------------------------------------------------------------------------------
+7) ATTENZIONE AL FLUSSO DI CONTROLLO: se gestisco gli errori devo sempre unlockare i mutex altrimenti
+rischio di andaee in deadlock ogni volta che gestisco errori.
+
+------------------------------------------------------------------------------------------------------
+8) RIVEDERE L'ATOMICITA' per write/read, ad esempio in connections.c flavio fa una cosa più furba di quella che faccio io.
+
+-------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
