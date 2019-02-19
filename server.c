@@ -49,8 +49,9 @@ int MaxFileSize;
 int MaxMsgSize;
 /*---------------------------------------------------------------*/
 
-// connected_fd[i] != 0 sse un worker vuole comunicare che il fd #i 
-// è nuovamente disponibile per l'ascolto  
+/*----------- Gestione dei fd per l'ascolto dei client ----------*/ 
+
+// connected_fd[i] != 0 sse il fd #i è nuovamente disponibile all'ascolto  
 int* connected_fd;
 
 // mappa che associa ad un fd il nick del client connesso su questo
@@ -58,6 +59,8 @@ char** fd_to_nick;
 
 // mutex per sincronizzare le strutture connected_fd e fd_to_nick
 pthread_mutex_t connected_mutex;
+
+/*-----------------------------------------------------------------*/
 
 // segnale per far terminare tutti i threads
 char loop_interrupt = 0;
@@ -68,22 +71,24 @@ void* listener(void* useless_arg) {
 	int max_fd = 5;
 	
 	// inizializzo il set dei fd da asoltare
-	fd_set set, curr_set;
+	fd_set set, rdset;
 	FD_ZERO(&set);
 	FD_SET(3, &set);
 	FD_SET(4, &set);
 	
+	listen(3, SOMAXCONN);
+	
 	// ciclo di ascolto
 	while(!loop_interrupt) {
-		// assegno a curr_set i fd disponibili per I/O
-		curr_set = set;
-		if(select(max_fd + 1, &curr_set, NULL, NULL, NULL) < 0) {
+		// assegno a rdset i fd disponibili per I/O
+		rdset = set;
+		if(select(max_fd + 1, &rdset, NULL, NULL, NULL) < 0) {
 			perror("Errore nella select del listener\n");
 			exit(EXIT_FAILURE);
 		}
 		
 		// Nuova connessione al socket
-		if(FD_ISSET(3, &curr_set)) {
+		if(FD_ISSET(3, &rdset)) {
 			int new_fd = accept(3, NULL, NULL);
 			
 			// caso in cui c'è un tentativo di connessione
@@ -100,7 +105,7 @@ void* listener(void* useless_arg) {
 		}
 		
 		// Comunicazione interna sulla pipe
-		if(FD_ISSET(4, &curr_set)) {
+		if(FD_ISSET(4, &rdset)) {
 			// Leggo dati inutili, il loro scopo è solo 
 			// rendere il fd read della pipe selezionabile
 			// per segnalare che ci sono nuovi fd liberi
@@ -110,19 +115,19 @@ void* listener(void* useless_arg) {
 			}
 			
 			// Rimetto nel mio set i fd da ascoltare
-			pthread_mutex_lock(&connected_mutex);
+			pthread_mutex_lock(&connected_mutex);  /*-------------------------------- RISCHIO DI DEADLOCK----------------------*/ 
 			for(int i = 6; i < MaxConnections + 6; i++) {
 				if(!connected_fd[i]) continue;
 				FD_SET(i, &set);
 				connected_fd[i] = 0;
 			}
-			pthread_mutex_unlock(&connected_mutex);
+			pthread_mutex_unlock(&connected_mutex);  /*-------------------------------------------------------------------------*/
 		}
 		
 		// Operazione su una connessione già stabilita
 		for(int i = 6; i <= max_fd; i++) {
-			if(!FD_ISSET(i, &curr_set)) continue;
-			FD_CLR(i, &curr_set);
+			if(!FD_ISSET(i, &rdset)) continue;
+			FD_CLR(i, &set);
 			push_queue(&queue, i);
 		}
 	}		
@@ -157,10 +162,12 @@ int main(int argc, char* argv[]) {
 	}
 	
 	// inizializzo fd_to_nick
-	fd_to_nick = calloc(MaxConnections + 6, sizeof(char*));
-	memset(fd_to_nick, 0, sizeof(char*));
+	if((fd_to_nick = calloc(MaxConnections + 6, sizeof(char*))) < 0) {
+		perror("Errore calloc\n");
+		return -1;
+	}
 	
-	// inizializzo mutex
+	// inizializzo i mutex
 	pthread_mutex_init(&(sset.mutex), NULL);
 	pthread_mutex_init(&connected_mutex, NULL);
 	
@@ -174,13 +181,6 @@ int main(int argc, char* argv[]) {
 		perror("Errore creando il Socket\n");
 		return -1;
 	}
-	struct sockaddr_un sa;
-	sa.sun_family = AF_UNIX;
-	strncpy(sa.sun_path, UnixPath, strlen(UnixPath) + 1);
-	if(bind(sock_fd,  (struct sockaddr*) &sa, sizeof(sa)) < 0) {
-		perror("Errore binding Socket\n");
-		return -1;
-	}
 	
 	// reidnirizzo il file descriptor del socket su 3
 	if(sock_fd != 3) {
@@ -189,7 +189,15 @@ int main(int argc, char* argv[]) {
 			return -1;
 		}
 		close(sock_fd);
-		sock_fd = 3;
+	}
+	
+	// lego il socket all'indirizzo UnixPath
+	struct sockaddr_un sa;
+	sa.sun_family = AF_UNIX;
+	strncpy(sa.sun_path, UnixPath, strlen(UnixPath) + 1);
+	if(bind(3,  (struct sockaddr*) &sa, sizeof(sa)) < 0) {
+		perror("Errore binding Socket\n");
+		return -1;
 	}
 		
 	// inizializzo il fd per la pipe
@@ -206,7 +214,6 @@ int main(int argc, char* argv[]) {
 			return -1;
 		}
 		close(pipe_fd[0]);
-		pipe_fd[0] = 4;
 	}
 	if(pipe_fd[1] != 5) {
 		if(dup2(pipe_fd[1], 5) < 0) {
@@ -214,7 +221,6 @@ int main(int argc, char* argv[]) {
 			return -1;
 		}
 		close(pipe_fd[1]);
-		pipe_fd[1] = 5;
 	}
 /*----------------------------------------------------------------------------*/
 
@@ -241,10 +247,10 @@ int main(int argc, char* argv[]) {
 
 	// Elimino il fd e il bind del Socket
 	unlink(UnixPath);
-	close(sock_fd);
+	close(3);
 	// Elimino i fd della pipe
-	close(pipe_fd[0]);
-	close(pipe_fd[1]);	
+	close(4);
+	close(5);	
 	// Distruggo i mutex
 	pthread_mutex_destroy(&(sset.mutex));
 	// Dealloco queue e hash table
@@ -252,6 +258,7 @@ int main(int argc, char* argv[]) {
 	destroy_queue(&queue);
 	// Dealloco vettori allocati dinamicamente
 	free(connected_fd);
+	free(fd_to_nick);
 		
 	return 0;
 }
