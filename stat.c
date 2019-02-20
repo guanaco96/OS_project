@@ -18,7 +18,7 @@ void update_stat(stat_set_t* sset, stat_t stat) {
 
  
 int print_stat(stat_set_t sset, const char* file_name) {
-    pthread_mutex_lock(&(sset->mutex));
+    pthread_mutex_lock(&(sset.mutex));
     FILE * fp = fopen(file_name, "a");
     if(fp == NULL) {
 		perror("fopen");
@@ -30,20 +30,18 @@ int print_stat(stat_set_t sset, const char* file_name) {
 			return -1;
     }
     
-    pthread_mutex_lock(&(sset.mutex));    
     for(int i = 0; i < 7; i++) {
 		if(fprintf(fp, " %d", sset.set[i]) < 0) {
 			fprintf(stderr, "stampa stat fallita\n");
 			return -1;
 		}
 	}
-    pthread_mutex_unlock(&(sset.mutex));
-	
+ 	
     if(fprintf(fp, "\n") < 0) {
 		fprintf(stderr, "stampa stat fallita\n");
 		return -1;
     }
     
-    pthread_mutex_unlock(&(sset->mutex));
+    pthread_mutex_unlock(&(sset.mutex));
     return 0;
 }

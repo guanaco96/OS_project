@@ -40,7 +40,10 @@ server: server.o  $(OBJECTS) $(INCLUDE_FILES)
 test1: test1.o  $(OBJECTS) $(INCLUDE_FILES)
 	 $(CC) $(CFLAGS) $(INCLUDES)  -o $@ $(OBJECTS) $(LIBS)
 
+test_stat: test_stat.o stat.o stat.h 
+	$(CC) $(CFLAGS) $(INCLUDES)  -o $@ test_stat.o stat.o $(LIBS)
+	
 all: $(TARGETS)
 
 cleanall:
-	rm $(TARGETS)
+	rm $(OBJECTS)
