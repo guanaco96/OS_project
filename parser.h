@@ -28,6 +28,9 @@ extern int MaxHistMsgs;
 extern int MaxFileSize;
 extern int MaxMsgSize;
 
+// dichiaro strotok_r per evitare warning con il flag -std=c99
+char* strtok_r(char*, const char*, char**);
+
 /**
  * @brief procedura che inizializza una serie di variabili esterne
  * leggendole da un file di configuazione
