@@ -65,7 +65,8 @@ pthread_mutex_t connected_mutex;
 // segnale per far terminare tutti i threads
 char loop_interrupt = 0;
 
-// main del thread thread listener_th
+/*------------------ Main del thread thread listener_th-----------*/
+
 void* listener(void* useless_arg) {
 	char* useless_buf[ThreadsInPool];
 	int max_fd = 5;
@@ -133,6 +134,22 @@ void* listener(void* useless_arg) {
 	}		
 	return NULL;
 }
+/*-----------------------------------------------------------------*/
+
+/*--------------Main del thread di gestion dei segnali-------------*/
+
+void signal_handler(void* sig_to_handle) {
+	int sign;
+	
+	while(!loop_interrupt) {
+		if(sigwait((sigset*) sig_to_handle, &sign) != 0) {
+			perror("sigwait\n");
+			exit(EXIT_FAILURE);
+		}
+		if(sign == SIGUSR1) {
+			print_stat(sset, StatFileName);
+		}
+		
 
 
 int main(int argc, char* argv[]) {
