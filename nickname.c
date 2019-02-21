@@ -24,11 +24,11 @@ nickname_t* create_nickname(int maxs) {
 	res->fd = -1;
 	res->first = res->size = 0;
 	res->max_size = maxs;
-	if((res->history = calloc(maxs, sizeof(message_t))) == NULL) {
+	if ((res->history = calloc(maxs, sizeof(message_t))) == NULL) {
 		fprintf(stderr, "Errore calloc\n");
 		return NULL;
 	}
-	if(pthread_mutex_init(&(res->mutex), NULL) != 0) {
+	if (pthread_mutex_init(&(res->mutex), NULL) != 0) {
 		fprintf(stderr, "Errore inizializzaizone mutex\n");
 		return NULL;
 	}
@@ -37,7 +37,7 @@ nickname_t* create_nickname(int maxs) {
 
 void destroy_nickname(nickname_t* nk) {
 	pthread_mutex_lock(&(nk->mutex));
-	for(int i = nk->first, j = 0; j < nk->size; j++) {
+	for (int i = nk->first, j = 0; j < nk->size; j++) {
 		destroy_message(&(nk->history[i]));
 		i = (i + 1) % nk->max_size;
 	}
@@ -48,7 +48,7 @@ void destroy_nickname(nickname_t* nk) {
 
 void append_msg_nickname(nickname_t* nk, message_t msg) {
 	pthread_mutex_lock(&(nk->mutex));
-	if(nk->size == nk->max_size) {
+	if (nk->size == nk->max_size) {
 		destroy_message(&(nk->history[nk->first]));
 		nk->history[nk->first] = msg;
 		nk->first = (nk->first + 1) % nk->max_size;

@@ -9,7 +9,8 @@ definire una var globale char perror_arg[100]
 2) controllo finale anti-plagio KIT -- MIO -- FLAVIO
 
 ------------------------------------------------------------------------------------------------------
-3) COPIARE SCRIPT IN BASH
+3) SISTEMARE IL SALVATAGGIO DEI FILES NELLA DIRECTORY PREDEFINITA
+	USANDO IL RET VAL DI mmap
 
 ------------------------------------------------------------------------------------------------------
 4) lock.c contiene una versione più robusta delle system calls lock

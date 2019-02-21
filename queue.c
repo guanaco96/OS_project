@@ -40,7 +40,7 @@ int pop_queue(queue_t* q) {
 
 void push_queue(queue_t* q, int x) {
 	pthread_mutex_lock(&(q->mutex));
-	if(q->len == q->size) {
+	if (q->len == q->size) {
 		fprintf(stderr, "Queue piena\n");
 		exit(EXIT_FAILURE);
 	}

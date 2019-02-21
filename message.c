@@ -16,7 +16,7 @@
 void setHeader(message_hdr_t *hdr, op_t op, char *sender) {
 #if defined(MAKE_VALGRIND_HAPPY)
     memset((char*)hdr, 0, sizeof(message_hdr_t));
-#endif
+#endif 
     hdr->op  = op;
     strncpy(hdr->sender, sender, strlen(sender)+1);
 }
@@ -24,7 +24,7 @@ void setHeader(message_hdr_t *hdr, op_t op, char *sender) {
 void setData(message_data_t *data, char *rcv, const char *buf, unsigned int len) {
 #if defined(MAKE_VALGRIND_HAPPY)
     memset((char*)&(data->hdr), 0, sizeof(message_data_hdr_t));
-#endif
+#endif 
 
     strncpy(data->hdr.receiver, rcv, strlen(rcv)+1);
     data->hdr.len  = len;

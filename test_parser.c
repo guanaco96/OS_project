@@ -16,7 +16,7 @@ int main() {
 	
 	char* file_name = "DATA/chatty.conf1";
 		
-	if(parse(file_name) < 0) printf("errore\n");
+	if (parse(file_name) < 0) printf("errore\n");
 	
 	printf("%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t",
 		UnixPath,

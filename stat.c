@@ -20,24 +20,24 @@ void update_stat(stat_set_t* sset, stat_t stat) {
 int print_stat(stat_set_t sset, const char* file_name) {
     pthread_mutex_lock(&(sset.mutex));
     FILE * fp = fopen(file_name, "a");
-    if(fp == NULL) {
+    if (fp == NULL) {
 		perror("fopen");
 		return -1;
 	}
 	
-    if(fprintf(fp, "%d -",	(int)time(NULL)) < 0) {
+    if (fprintf(fp, "%ld -", time(NULL)) < 0) {
 			fprintf(stderr, "stampa stat fallita\n");
 			return -1;
     }
     
-    for(int i = 0; i < 7; i++) {
-		if(fprintf(fp, " %d", sset.set[i]) < 0) {
+    for (int i = 0; i < 7; i++) {
+		if (fprintf(fp, " %d", sset.set[i]) < 0) {
 			fprintf(stderr, "stampa stat fallita\n");
 			return -1;
 		}
 	}
  	
-    if(fprintf(fp, "\n") < 0) {
+    if (fprintf(fp, "\n") < 0) {
 		fprintf(stderr, "stampa stat fallita\n");
 		return -1;
     }

@@ -54,7 +54,7 @@ int main() {
 
 	sendRequest(fd, &m);
 
-	if(close(fd) == -1) printf("errore\n");
+	if (close(fd) == -1) printf("errore\n");
 
 	fd = open("foo", O_RDWR);
 
@@ -62,7 +62,7 @@ int main() {
 
 	readMsg(fd, &m2);
 
-	if(close(fd) == -1) printf("errore\n");
+	if (close(fd) == -1) printf("errore\n");
 
 	print_message(&m2);
 

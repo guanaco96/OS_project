@@ -13,12 +13,12 @@
 
 int openConnection(char* path, unsigned int ntimes, unsigned int secs) {
 	// se ntimes o secs eccedono i limiti li ridimensiono senza sollevare errori
-	if(ntimes > MAX_RETRIES) ntimes = MAX_RETRIES;
-	if(secs > MAX_SLEEPING) secs = MAX_SLEEPING;
+	if (ntimes > MAX_RETRIES) ntimes = MAX_RETRIES;
+	if (secs > MAX_SLEEPING) secs = MAX_SLEEPING;
 
 	// inizializzo il socket address
 	struct sockaddr_un sa;
-	if(strlen(path) >= UNIX_PATH_MAX) {
+	if (strlen(path) >= UNIX_PATH_MAX) {
 		fprintf(stderr, "path troppo lungo\n");
 		return -1;
 	}
@@ -27,14 +27,14 @@ int openConnection(char* path, unsigned int ntimes, unsigned int secs) {
 	
 	// creo il client socket file descriptor
 	int csfd;
-	if((csfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+	if ((csfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
 		perror("Errore creando il Socket\n");
 		return -1;
 	}
 	
 	// tento la connessione n volte
-	for(int i = 0; i < ntimes; i++) {
-		if(connect(csfd, (struct sockaddr*) &sa, sizeof(sa)) == 0) {
+	for (int i = 0; i < ntimes; i++) {
+		if (connect(csfd, (struct sockaddr*) &sa, sizeof(sa)) == 0) {
 			return csfd;
 		}
 		sleep(secs);
@@ -48,8 +48,8 @@ int openConnection(char* path, unsigned int ntimes, unsigned int secs) {
 	
 int readHeader(long fd, message_hdr_t *hdr) {
 	int nred = read(fd, (void*) hdr, sizeof(message_hdr_t));
-	if(nred < 0) perror("readHeader");
-	if(nred == 0) fprintf(stderr, "Letto header vuoto");
+	if (nred < 0) perror("readHeader");
+	if (nred == 0) fprintf(stderr, "Letto header vuoto");
 	
 	return nred;
 }
@@ -57,8 +57,8 @@ int readHeader(long fd, message_hdr_t *hdr) {
 
 int readData(long fd, message_data_t *data) {
 	int nred = read(fd, (void*) data, sizeof(message_data_t));
-	if(nred < 0) perror("readData");
-	if(nred == 0) fprintf(stderr, "Letto data vuoto");
+	if (nred < 0) perror("readData");
+	if (nred == 0) fprintf(stderr, "Letto data vuoto");
 	
 	return nred;
 }
@@ -71,8 +71,8 @@ int readMsg(long fd, message_t *msg) {
 
 int sendHeader(long fd, message_hdr_t *hdr) {
 	int nwrote = write(fd, (void*) hdr, sizeof(message_hdr_t));
-	if(nwrote < 0) perror("sendHeader");
-	if(nwrote == 0) fprintf(stderr, "Inviato header vuoto");
+	if (nwrote < 0) perror("sendHeader");
+	if (nwrote == 0) fprintf(stderr, "Inviato header vuoto");
 	
 	return nwrote;
 }
@@ -80,8 +80,8 @@ int sendHeader(long fd, message_hdr_t *hdr) {
 
 int sendData(long fd, message_data_t *data) {
 	int nwrote = write(fd, (void*) data, sizeof(message_data_t));
-	if(nwrote < 0) perror("sendData");
-	if(nwrote == 0) fprintf(stderr, "Inviato data vuoto");
+	if (nwrote < 0) perror("sendData");
+	if (nwrote == 0) fprintf(stderr, "Inviato data vuoto");
 	
 	return nwrote;
 }	
