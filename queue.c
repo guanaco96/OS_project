@@ -24,7 +24,7 @@ queue_t create_queue(int s) {
 
 void destroy_queue(queue_t* q) {
 	free(q->arr);
-	pthread_mutex_destory((q->mutex));
+	pthread_mutex_destroy(&(q->mutex));
 }
 
 int pop_queue(queue_t* q) {

@@ -7,20 +7,21 @@
  *
  * @author 	Lorenzo Beretta, 536242, loribere@gmail.com
  */
+#define _POSIX_C_SOURCE 200809L
+
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
-#include <signal.h>
-#include <stdio.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <sys/mman.h>
+#include <sys/un.h>
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <assert.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <stdlib.h>
+#include <signal.h>
 
 #include "connections.h"
 #include "queue.h"
@@ -255,7 +256,7 @@ int main(int argc, char* argv[]) {
 		perror("sigaddset\n");
 		return -1;
 	}
-	if (sigemptyset(sigaddset(&signalmask, SIGTERM) < 0) < 0) {
+	if (sigaddset(&signalmask, SIGTERM) < 0) {
 		perror("sigaddset\n");
 		return -1;
 	}
@@ -271,7 +272,7 @@ int main(int argc, char* argv[]) {
 	// loop di gestione dei segnali
 	while (!loop_interrupt) {
 		int sign;
-		if (sigwait((sigset*) &signalmask, &sign) != 0) {
+		if (sigwait((sigset_t*) &signalmask, &sign) != 0) {
 			perror("sigwait\n");
 			exit(EXIT_FAILURE);
 		}
@@ -293,7 +294,7 @@ int main(int argc, char* argv[]) {
 			
 			// scrive sulla pipe interna per fare uscire il listener dalla select
 			if (write(4, tmp_buf, 1) < 0) {
-				perror("Errore nelllos scrivere la pipe interna, riprovo\m");
+				perror("Errore nello scrivere la pipe interna, riprovo\n");
 				return -1;
 			}
 		}

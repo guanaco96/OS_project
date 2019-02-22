@@ -27,7 +27,6 @@
 #include "ops.h"	
 #include "hashtable.h"
 #include "stat.h"
-#include "parser.h"
 
 // variabili esterne documentate in server.c
 extern stat_set_t sset;
@@ -39,8 +38,9 @@ extern int* connected_fd;
 extern char** fd_to_nick;
 extern pthread_mutex_t connected_mutex;
 
+extern int MaxConnections;
 extern int MaxMsgSize;
-extern int DirName;
+extern char* DirName;
 
 // se il client si è disconnesso lo elimino dalla mappa fd_to_nick
 // altrimenti segnalo al listener che deve essere riascoltato 
@@ -128,6 +128,12 @@ void* worker(void* useless_arg) {
 		char* text = msg.data.buf;
 		int text_len = msg.data.hdr.len;
 		
+		// se il messaggio è troppo lungo
+		if (text_len > MaxMsgSize) {
+			answer(fd, OP_MSG_TOOLONG);
+			break;
+		}
+		
 		// eseguo l'operazione
 		switch (op) {
 	/*------------------------REGISTER_OP---------------------------------*/
@@ -173,11 +179,6 @@ void* worker(void* useless_arg) {
 				answer(fd, OP_NICK_UNKNOWN);
 				break;
 			}
-			// se il messaggio è troppo lungo
-			if (text_len > MaxMsgSize) {
-				answer(fd, OP_MSG_TOOLONG);
-				break;
-			}
 			
 			msg.hdr.op = TXT_MESSAGE;
 			
@@ -187,7 +188,7 @@ void* worker(void* useless_arg) {
 
 			append_msg_nickname(user1, msg);
 			append_msg_nickname(user2, msg);
-			anwer(fd, OP_OK);
+			answer(fd, OP_OK);
 		} break;
 	/*-----------------------------POSTTXTALL_OP--------------------------*/
 		case POSTTXTALL_OP: {
@@ -198,22 +199,16 @@ void* worker(void* useless_arg) {
 				answer(fd, OP_NICK_UNKNOWN);
 				break;
 			}
-			// se il messaggio è troppo lungo
-			if (text_len > MaxMsgSize) {
-				answer(fd, OP_MSG_TOOLONG);
-				break;
-			}
 			
 			msg.hdr.op = TXT_MESSAGE;
-			
+			// il messaggio viene recapitato ai client connessi
 			pthread_mutex_lock(&connected_mutex);
-			msg.hdr.op = TXT_MESSAGE;
 			for (int i = 6; i < MaxConnections + 6; i++) {
 				if (fd_to_nick[i] == NULL) continue;
 				sendRequest(i, &msg);
 			}
 			pthread_mutex_unlock(&connected_mutex);
-			
+			// viene poi aggiunto alla history di tutti
 			append_all(msg);
 			answer(fd, OP_OK);
 		} break;
@@ -226,59 +221,113 @@ void* worker(void* useless_arg) {
 				answer(fd, OP_NICK_UNKNOWN);
 				break;
 			}
-			// se il messaggio è troppo lungo
-			if (text_len > MaxMsgSize) {
-				answer(fd, OP_MSG_TOOLONG);
-				break;
-			}
-			
+			// messaggio contenente la mmap del file
 			message_t fmsg;
 			if (readData(fd, &fmsg.data) < 0) {
 				perror("readData\n");
 				answer(fd, OP_FAIL);
 				break;
 			}
-			
-			/* qui dovrei utilizzare il return value dell mmap del client per reperire il file
-			 * in memoria e salvare quello nella directory, finchè non so farlo mi tengo il mio
-			 * codice stupido che funziona solo per clients avviati nella stessa directory
-			 */
+			char* mappedfile = fmsg.data.buf;
+			int mappedsize = fmsg.data.hdr.len;
 			 
-			// il file viene salvato nella directory predefinita MODO ROZZO
-			char* command = calloc(3*MaxMsgSize + 5, sizeof(char));
-			strcpy(command, "cp ");
-			strcat(command, msg.data.buf);
-			strcat(command, " ");
-			strcat(command, DirName);
-			strcat(command, "/");
-			strcat(command, msg.data.buf);			
-			system(command);
+			// file_name = "DirName/text"
+			char* file_name = calloc(2*MaxMsgSize + 1, sizeof(char));
+			strcpy(file_name, DirName);
+			strcat(file_name, "/");
+			strcat(file_name, text);
+
+			int outfd = open(file_name, O_WRONLY | O_APPEND | O_CREAT, 0644);
+			if (write(outfd, mappedfile, mappedsize) < 0) {
+				perror("write salvando il file\n");
+				answer(fd, OP_FAIL);
+				break;
+			}	
+			close(outfd);
 			
 			msg.hdr.op = FILE_MESSAGE;
-			
 			// se il ricevente è online il messaggio gli viene inviato
-			// altrimenti viene soltanto salvato nella cronologia
 			if (user2->fd != -1) {
 				sendRequest(user2->fd, &msg);
 			}
-
+			// in ogni caso viene inviato alla cronologia di entrambi			
 			append_msg_nickname(user1, msg);
 			append_msg_nickname(user2, msg);
-			anwer(fd, OP_OK);
+			answer(fd, OP_OK);
 		} break;
 		
 	/*---------------------GETFILE_OP--------------------------------------*/
-		case GETFILE_OP: {
+	// gli inivio il file utilizzando mmap
+		case GETFILE_OP: {			
+			int reqfd = open(text, O_RDONLY);
+			char* mappedfile;
 			
+			if (reqfd < 0) {
+				perror("open\n");
+				answer(fd, OP_NO_SUCH_FILE);
+				break;
+			}
+			mappedfile = mmap(NULL, text_len, PROT_READ,MAP_PRIVATE, reqfd, 0);
+			if (mappedfile == MAP_FAILED) {
+				perror("mmap");
+				answer(fd, OP_FAIL);
+				break;
+			}
+			close(reqfd);
 			
+			message_t rmsg;
+			rmsg.hdr.op = OP_OK;
+			rmsg.data.hdr.len = text_len;
+			rmsg.data.buf = mappedfile;
 			
-			
-			
-			
+			sendRequest(fd, &rmsg);
+		} break;
 		
+	/*------------------------GETPREVMSGS_OP------------------------------*/
+		case GETPREVMSGS_OP: {
+			nickname_t* user = find_hash(htab, sender);
+			// se l'utente non risulta registrato
+			if (user == NULL) {
+				answer(fd, OP_NICK_UNKNOWN);
+				break;
+			}
 			
-	
-	
+			message_t rmsg;
+			rmsg.hdr.op = OP_OK;
+			rmsg.data.buf[0] = (char) user->size;
+			sendRequest(fd, &rmsg);
+			
+			int j = user->first;
+			for (int i = 0; i < user->size; i++) {
+				sendRequest(fd, &user->history[j]);
+				j = (j + 1) % user->max_size;
+			}
+		} break;
+		
+	/*-------------------------USRLIST_OP-------------------------------*/
+		case USRLIST_OP: {
+			answer(fd, OP_OK);
+			send_list(fd);
+		} break;
+	/*-----------------------UNREGISTER_OP-----------------------------*/
+		case UNREGISTER_OP: {
+			nickname_t* user = find_hash(htab, sender);
+			if (user == NULL) {
+				answer(fd, OP_NICK_UNKNOWN);
+				break;
+			}
+			if (remove_hash(htab, sender) < 0) {
+				perror("remove_hash\n");
+				answer(fd, OP_FAIL);
+				break;
+			}
+			
+			answer(fd, OP_OK);
+		} break;			
+	/*-------------------------------------------------------------------*/		
+		default: break;
+		}
+	}
 	
 	return NULL;
 }
