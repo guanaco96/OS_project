@@ -28,8 +28,12 @@ void setData(message_data_t *data, char *rcv, const char *buf, unsigned int len)
 
     strncpy(data->hdr.receiver, rcv, strlen(rcv)+1);
     data->hdr.len  = len;
-    data->buf = calloc(strlen(buf) + 1, sizeof(char));
-    strncpy(data->buf, buf, strlen(buf) + 1);
+    if (buf) {
+		data->buf = calloc(strlen(buf) + 1, sizeof(char));
+		strncpy(data->buf, buf, strlen(buf) + 1);
+	} else {
+		data->buf = NULL;
+	}
 }
 
 void destroy_message(message_t* msg) {

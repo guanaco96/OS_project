@@ -42,27 +42,12 @@ extern int MaxConnections;
 extern int MaxMsgSize;
 extern char* DirName;
 
-// se il client si è disconnesso lo elimino dalla mappa fd_to_nick
-// altrimenti segnalo al listener che deve essere riascoltato 
-void is_connected(int fd) {
-	pthread_mutex_lock(&connected_mutex);
-	if (fcntl(fd, F_GETFD) != -1) {
-		connected_fd[fd] = 1;
-		// scrivo sulla pipe per destare la select
-		char* tmp_buf = "1";
-		if (write(5, tmp_buf, 1) < 0) {
-			perror("write\n");
-			pthread_mutex_lock(&connected_mutex);
-			exit(EXIT_FAILURE);
-		}
-	}
-	pthread_mutex_lock(&connected_mutex);
-}
 
 // aggiuinge un nickname alla mappa fd_to_nickname
 void add_nick(int fd, char* nick) {
 	pthread_mutex_lock(&connected_mutex);
-	fd_to_nick[fd] = nick;
+	fd_to_nick[fd] = malloc((strlen(nick) + 1) * sizeof(char));
+	strcpy(fd_to_nick[fd], nick);
 	pthread_mutex_unlock(&connected_mutex);
 }
 
@@ -119,9 +104,33 @@ void* worker(void* useless_arg) {
 	while (!loop_interrupt) {
 		// estrazione MT-safe dalla queue
 		int fd = pop_queue(&queue);
+		
+		
+		// far terminare il programma in caso di segnale
+		if (fd < 0) return NULL;
 				
-		// lettura del messaggio
-		readMsg(fd, &msg);
+		// leggo il messaggio e controllo se l'utente è ancora online
+		if (readMsg(fd, &msg) != 0) {
+			pthread_mutex_lock(&connected_mutex);
+			connected_fd[fd] = 1;
+			// scrivo sulla pipe per destare la select
+			char* tmp_buf = "1";
+			if (write(5, tmp_buf, 1) < 0) {
+				perror("write\n");
+				pthread_mutex_lock(&connected_mutex);
+				exit(EXIT_FAILURE);
+			}
+			pthread_mutex_unlock(&connected_mutex);
+		} else {
+			pthread_mutex_lock(&connected_mutex);
+			nickname_t* user = find_hash(htab, fd_to_nick[fd]);
+			user->fd = -1;
+			free(fd_to_nick[fd]);
+			fd_to_nick[fd] = NULL;
+			pthread_mutex_unlock(&connected_mutex);
+			continue;
+		}
+		
 		op_t op = msg.hdr.op;
 		char* sender = msg.hdr.sender;
 		char* receiver = msg.data.hdr.receiver;
@@ -294,7 +303,8 @@ void* worker(void* useless_arg) {
 			
 			message_t rmsg;
 			rmsg.hdr.op = OP_OK;
-			rmsg.data.buf[0] = (char) user->size;
+			rmsg.data.hdr.len = 1;
+			rmsg.data.buf = (char*) &user->size;
 			sendRequest(fd, &rmsg);
 			
 			int j = user->first;

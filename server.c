@@ -152,6 +152,7 @@ int main(int argc, char* argv[]) {
 			"Lanciare il server utlizzando il comando:\n"
 			"%s -f <file_di_configurazione>\n", argv[0]
 		);
+		return 0;
 	}
 	
 	// effettuo il parsing del file di configurazione
@@ -202,6 +203,9 @@ int main(int argc, char* argv[]) {
 	struct sockaddr_un sa;
 	sa.sun_family = AF_UNIX;
 	strncpy(sa.sun_path, UnixPath, strlen(UnixPath) + 1);
+	#ifdef DEBUG
+		unlink(UnixPath);
+	#endif
 	if (bind(3,  (struct sockaddr*) &sa, sizeof(sa)) < 0) {
 		perror("Errore binding Socket\n");
 		return -1;
@@ -229,43 +233,56 @@ int main(int argc, char* argv[]) {
 		}
 		close(pipe_fd[1]);
 	}
-/*----------------------------------------------------------------------------*/
-
-/*---------------------------GESTIONE DEI SEGNALI--------------------------------*/
 	
 	// ignoro SIGPIPE per non avere problemi in caso un client riattacchi improvvisamente
 	struct sigaction no_sig_pipe;
 	memset(&no_sig_pipe, 0, sizeof(no_sig_pipe));
 	no_sig_pipe.sa_handler = SIG_IGN;
 	if (sigaction(SIGPIPE, &no_sig_pipe, NULL) < 0) {
-		perror("Errore di sigaction\n");
+		perror("Errore di sigaction");
 		return -1;
 	}
 	
+/*----------------------------------------------------------------------------*/
+
+/*-------------------CREAZIONE THREADS, SERVER A REGIME-----------------------*/
+	
+	// creo il thread listener
+	pthread_t listener_th;
+	pthread_create(&listener_th, NULL, &listener, NULL);
+	
+	// creo i thread worker
+	pthread_t worker_th[ThreadsInPool];
+	for  (int i = 0; i < ThreadsInPool; ++i) {
+		pthread_create(&worker_th[i], NULL, &worker, NULL);
+	}
+/*----------------------------------------------------------------------------*/
+
+/*---------------------------GESTIONE DEI SEGNALI------------------------------*/	
 	// maschero tutti i segnali da gestire attraverso la sigwait
 	sigset_t signalmask;
 	if (sigemptyset(&signalmask) < 0) {
-		perror("sigemptyset\n");
+		perror("sigemptyset");
 		return -1;
 	}
 	if (sigaddset(&signalmask, SIGUSR1) < 0) {
-		perror("sigaddset\n");
+		perror("sigaddset");
 		return -1;
 	}
 	if (sigaddset(&signalmask, SIGINT) < 0) {
-		perror("sigaddset\n");
+		perror("sigaddset");
 		return -1;
 	}
 	if (sigaddset(&signalmask, SIGTERM) < 0) {
-		perror("sigaddset\n");
+		perror("sigaddset");
 		return -1;
 	}
 	if (sigaddset(&signalmask, SIGQUIT) < 0) {
-		perror("sigaddset\n");
+		perror("sigaddset");
 		return -1;
 	}
 	if (pthread_sigmask(SIG_SETMASK, &signalmask, NULL) == -1) {
-		perror("pthread_sigmask\n");
+		perror("pthread_sigmask");
 		return -1;
 	}
 	
@@ -273,7 +290,7 @@ int main(int argc, char* argv[]) {
 	while (!loop_interrupt) {
 		int sign;
 		if (sigwait((sigset_t*) &signalmask, &sign) != 0) {
-			perror("sigwait\n");
+			perror("sigwait");
 			exit(EXIT_FAILURE);
 		}
 		
@@ -294,26 +311,13 @@ int main(int argc, char* argv[]) {
 			
 			// scrive sulla pipe interna per fare uscire il listener dalla select
 			if (write(4, tmp_buf, 1) < 0) {
-				perror("Errore nello scrivere la pipe interna, riprovo\n");
+				perror("Errore nello scrivere la pipe interna");
 				return -1;
 			}
 		}
 	}	
 /*----------------------------------------------------------------------------*/
 
-/*-------------------CREAZIONE THREADS, SERVER A REGIME-----------------------*/
-	
-	// creo il thread listener
-	pthread_t listener_th;
-	pthread_create(&listener_th, NULL, &listener, NULL);
-	
-	// creo i thread worker
-	pthread_t worker_th[ThreadsInPool];
-	for  (int i = 0; i < ThreadsInPool; ++i) {
-		pthread_create(&worker_th[i], NULL, &worker, NULL);
-	}
-/*----------------------------------------------------------------------------*/
-	
 /*----------------------------PULIZIA FINALE----------------------------------*/
 
 	// Elimino il bind del Socket

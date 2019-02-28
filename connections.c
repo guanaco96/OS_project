@@ -28,7 +28,7 @@ int openConnection(char* path, unsigned int ntimes, unsigned int secs) {
 	// creo il client socket file descriptor
 	int csfd;
 	if ((csfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-		perror("Errore creando il Socket\n");
+		perror("Errore creando il Socket");
 		return -1;
 	}
 	
@@ -48,19 +48,29 @@ int openConnection(char* path, unsigned int ntimes, unsigned int secs) {
 	
 int readHeader(long fd, message_hdr_t *hdr) {
 	int nred = read(fd, (void*) hdr, sizeof(message_hdr_t));
-	if (nred < 0) perror("readHeader");
-	if (nred == 0) fprintf(stderr, "Letto header vuoto");
-	
+	if (nred < 0) {
+		perror("readHeader");
+		return -1;
+	}
 	return nred;
 }
 
 
 int readData(long fd, message_data_t *data) {
-	int nred = read(fd, (void*) data, sizeof(message_data_t));
-	if (nred < 0) perror("readData");
-	if (nred == 0) fprintf(stderr, "Letto data vuoto");
+	int nred_hdr = read(fd, (void*) &data->hdr, sizeof(message_data_hdr_t));
+	if (nred_hdr < 0) {		
+		perror("readData");
+		return -1;
+	}
 	
-	return nred;
+	data->buf = malloc(data->hdr.len * sizeof(char));
+	
+	int nred_data = read(fd, (void*) data->buf, data->hdr.len * sizeof(char));
+	if (nred_data < 0) {		
+		perror("readData");
+		return -1;
+	}
+	return nred_hdr + nred_data;
 }
 
 
@@ -72,18 +82,24 @@ int readMsg(long fd, message_t *msg) {
 int sendHeader(long fd, message_hdr_t *hdr) {
 	int nwrote = write(fd, (void*) hdr, sizeof(message_hdr_t));
 	if (nwrote < 0) perror("sendHeader");
-	if (nwrote == 0) fprintf(stderr, "Inviato header vuoto");
+	if (nwrote == 0) fprintf(stderr, "Inviato header vuoto\n");
 	
 	return nwrote;
 }
 	
 
 int sendData(long fd, message_data_t *data) {
-	int nwrote = write(fd, (void*) data, sizeof(message_data_t));
-	if (nwrote < 0) perror("sendData");
-	if (nwrote == 0) fprintf(stderr, "Inviato data vuoto");
-	
-	return nwrote;
+	int nred_hdr = write(fd, (void*) &data->hdr, sizeof(message_data_hdr_t));
+	if (nred_hdr < 0) {
+		perror("sendData");
+		return -1;
+	}
+	int nred_data = write(fd, (void*) data->buf, data->hdr.len * sizeof(char));
+	if (nred_data < 0) {
+		perror("sendData");
+		return -1;
+	}	
+	return nred_hdr + nred_data;
 }	
 
 

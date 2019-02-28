@@ -1,9 +1,11 @@
 CC		=	gcc
-CFLAGS +=	-std=c99 -Wall  -g -D MAKE_VALGRIND_HAPPY
+CFLAGS +=	-std=c99 -Wall  -g -D MAKE_VALGRIND_HAPPY -DDEBUG
 OPTLAGS =	#-03
 LIBS	=	-pthread
 INCLUDES =	-I.
 
+TARGETS =	server \
+			client
 
 OBJECTS	=	server.o \
 			queue.o \
@@ -13,8 +15,7 @@ OBJECTS	=	server.o \
 			hashtable.o \
 			connections.o \
 			stat.o \
-			worker.o
-
+			worker.o 
 
 
 INLUCDE_FILES =	ops.h \
@@ -32,7 +33,10 @@ INLUCDE_FILES =	ops.h \
 .PHONY: cleanall all
 
 %.o: %.cm $(INDCLUDE_FILES)
-	 $(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $< $(LIBS)
+	 $(CC) $(CFLAGS) -c -o $@ $< $(LIBS)
+
+client: client.c connections.c message.c
+	gcc -g -Wall -o client client.c connections.c message.c
 
 server: server.o  $(OBJECTS) $(INCLUDE_FILES)
 	 $(CC) $(CFLAGS) $(INCLUDES)  -o $@ $(OBJECTS) $(LIBS)
