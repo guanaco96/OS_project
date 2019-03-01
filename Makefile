@@ -4,10 +4,10 @@ OPTLAGS =	#-03
 LIBS	=	-pthread
 INCLUDES =	-I.
 
-TARGETS =	server \
+TARGETS =	chatty \
 			client
 
-OBJECTS	=	server.o \
+OBJECTS	=	chatty.o \
 			queue.o \
 			icl_hash.o \
 			nickname.o \
@@ -38,7 +38,7 @@ INLUCDE_FILES =	ops.h \
 client: client.c connections.c message.c
 	gcc -g -Wall -o client client.c connections.c message.c
 
-server: server.o  $(OBJECTS) $(INCLUDE_FILES)
+chatty: chatty.o  $(OBJECTS) $(INCLUDE_FILES)
 	 $(CC) $(CFLAGS) $(INCLUDES)  -o $@ $(OBJECTS) $(LIBS)
 
 test1: test1.o  $(OBJECTS) $(INCLUDE_FILES)

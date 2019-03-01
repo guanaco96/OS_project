@@ -1,28 +1,30 @@
-1) Inserire nel main. ACHTUNG: #define ha scope solo nel file corrente.
-
-definire una var globale char perror_arg[100]
-
-#define  SYSCALL(r, c, e) \
-	if((r = c) == -1) { perror(e); exit(EXIT_FAILURE);}
+1) memory leaks check con valgrind
 
 ------------------------------------------------------------------------------------------------------
 2) controllo finale anti-plagio KIT -- MIO -- FLAVIO
 
 ------------------------------------------------------------------------------------------------------
-3) SISTEMARE IL SALVATAGGIO DEI FILES NELLA DIRECTORY PREDEFINITA
-	USANDO IL RET VAL DI mmap
+3) messaggi di errore == "too many fds || //TODELETE answering some failure"
 
 ------------------------------------------------------------------------------------------------------
-4) lock.c contiene una versione più robusta delle system calls lock
- e unlock. IO ME NE SBATTERO' IL CAZZO.
-
+4) 
 
 ------------------------------------------------------------------------------------------------------
-5) 
+5) KNOWN BUGS:
+i) send all invia anche a se stesso, non è un problema imho.
 
+ii) i file inviati si accumulano ad infinitum sul disco della macchina.
+
+iii) BUG DEL CLIENT: in execute_receive, quando l'argomento di -R è < 0, 
+non c'è modo di arrestare il loop che stampa infinite copie se non resti-
+tuendo errore anche quando una read mi ritorna 0 (== EOF).
+HO MODIFICATO IL CLIENT
 
 ------------------------------------------------------------------------------------------------------
-6) 
+6) TODECLARE: ho cambiato il file in testconf.sh sostituendo chattylib.a
+con chatty, che giustamente supera il limite dei 50Kb per ottenere gli 
+errori voluti dal test.
+
 
 ------------------------------------------------------------------------------------------------------
 7) ATTENZIONE AL FLUSSO DI CONTROLLO: se gestisco gli errori devo

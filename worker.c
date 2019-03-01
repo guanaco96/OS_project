@@ -41,6 +41,7 @@ extern pthread_mutex_t connected_mutex;
 extern int MaxConnections;
 extern int MaxMsgSize;
 extern char* DirName;
+extern int MaxFileSize;
 
 
 // aggiuinge un nickname alla mappa fd_to_nickname
@@ -195,6 +196,12 @@ void* worker(void* useless_arg) {
 			update_stat(&sset, messaggi_da_consegnare, 1);
 			msg.hdr.op = TXT_MESSAGE;
 			
+			// caso in cui il messaggio è troppo lungo
+			if (msg.data.hdr.len >= MaxMsgSize) {
+				answer(fd, OP_MSG_TOOLONG);
+				break;
+			}
+			
 			// se il ricevente è online il messaggio gli viene inviato
 			// altrimenti viene soltanto salvato nella cronologia
 			if (user2->fd != -1) sendRequest(user2->fd, &msg);
@@ -247,6 +254,12 @@ void* worker(void* useless_arg) {
 			}
 			char* mappedfile = fmsg.data.buf;
 			int mappedsize = fmsg.data.hdr.len;
+			
+			// caso in cui il file è troppo grande
+			if (mappedsize > MaxFileSize * 1024) {
+				answer(fd, OP_MSG_TOOLONG);
+				break;
+			}
 			 
 			// file_name = "DirName/text"
 			char* file_name = calloc(2*MaxMsgSize + 1, sizeof(char));
@@ -262,6 +275,8 @@ void* worker(void* useless_arg) {
 			}	
 			close(outfd);
 			munmap(fmsg.data.buf, fmsg.data.hdr.len);
+			free(mappedfile);
+			free(file_name);
 			
 			msg.hdr.op = FILE_MESSAGE;
 			// se il ricevente è online il messaggio gli viene inviato
