@@ -10,9 +10,9 @@
  
 #include"stat.h"
 
-void update_stat(stat_set_t* sset, stat_t stat) {
+void update_stat(stat_set_t* sset, stat_t stat, int increment) {
 	pthread_mutex_lock(&(sset->mutex));
-	sset->set[(int) stat]++;
+	sset->set[(int) stat] += increment;
 	pthread_mutex_unlock(&(sset->mutex));
 }
 
@@ -41,7 +41,8 @@ int print_stat(stat_set_t sset, const char* file_name) {
 		fprintf(stderr, "stampa stat fallita\n");
 		return -1;
     }
-    
+    fflush(fp);
+    fclose(fp);
     pthread_mutex_unlock(&(sset.mutex));
     return 0;
 }

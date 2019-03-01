@@ -69,11 +69,20 @@ void send_list(int fd) {
 	pthread_mutex_unlock(&connected_mutex);
 	
 	sendData(fd, &data);
+	free(data.buf);
 }
 
 // invia una risposta al client contenente solo l'operazione
 void answer(int fd, op_t op) {
 	message_hdr_t reply;
+	if (op == OP_FAIL ||
+		op == OP_NICK_ALREADY ||
+		op == OP_NICK_UNKNOWN ||
+		op == OP_MSG_TOOLONG ||
+		op == OP_NO_SUCH_FILE) {
+			update_stat(&sset, messaggi_di_errore, 1);
+		}
+	
 	reply.op = op;
 	sendHeader(fd, &reply);
 }
@@ -105,29 +114,21 @@ void* worker(void* useless_arg) {
 		// estrazione MT-safe dalla queue
 		int fd = pop_queue(&queue);
 		
-		
 		// far terminare il programma in caso di segnale
 		if (fd < 0) return NULL;
-				
+		
 		// leggo il messaggio e controllo se l'utente è ancora online
-		if (readMsg(fd, &msg) != 0) {
-			pthread_mutex_lock(&connected_mutex);
-			connected_fd[fd] = 1;
-			// scrivo sulla pipe per destare la select
-			char* tmp_buf = "1";
-			if (write(5, tmp_buf, 1) < 0) {
-				perror("write\n");
-				pthread_mutex_lock(&connected_mutex);
-				exit(EXIT_FAILURE);
-			}
-			pthread_mutex_unlock(&connected_mutex);
-		} else {
-			pthread_mutex_lock(&connected_mutex);
+		if (readMsg(fd, &msg) == 0) {
 			nickname_t* user = find_hash(htab, fd_to_nick[fd]);
-			user->fd = -1;
-			free(fd_to_nick[fd]);
+			if (user) user->fd = -1;
+			
+			pthread_mutex_lock(&connected_mutex);
+			if (fd_to_nick[fd]) free(fd_to_nick[fd]);
 			fd_to_nick[fd] = NULL;
 			pthread_mutex_unlock(&connected_mutex);
+			
+			close(fd);
+			update_stat(&sset, clienti_online, -1);
 			continue;
 		}
 		
@@ -164,6 +165,7 @@ void* worker(void* useless_arg) {
 			add_nick(fd, sender);
 			answer(fd, OP_OK);
 			send_list(fd);
+			update_stat(&sset, utenti_registrati, 1);
 		} break;
 	/*---------------------------CONNECT_OP------------------------------*/
 		case CONNECT_OP: {
@@ -177,7 +179,8 @@ void* worker(void* useless_arg) {
 			user->fd = fd;
 			add_nick(fd, sender);
 			answer(fd, OP_OK);
-			send_list(fd);			
+			send_list(fd);
+			update_stat(&sset, clienti_online, 1);			
 		} break;
 	/*-----------------------------POSTTXT_OP-----------------------------*/
 		case POSTTXT_OP: {
@@ -189,15 +192,17 @@ void* worker(void* useless_arg) {
 				break;
 			}
 			
+			update_stat(&sset, messaggi_da_consegnare, 1);
 			msg.hdr.op = TXT_MESSAGE;
 			
 			// se il ricevente è online il messaggio gli viene inviato
 			// altrimenti viene soltanto salvato nella cronologia
 			if (user2->fd != -1) sendRequest(user2->fd, &msg);
 
-			append_msg_nickname(user1, msg);
 			append_msg_nickname(user2, msg);
 			answer(fd, OP_OK);
+			update_stat(&sset, messaggi_da_consegnare, -1);
+			update_stat(&sset, messaggi_consegnati, 1);
 		} break;
 	/*-----------------------------POSTTXTALL_OP--------------------------*/
 		case POSTTXTALL_OP: {
@@ -209,6 +214,7 @@ void* worker(void* useless_arg) {
 				break;
 			}
 			
+			update_stat(&sset, messaggi_da_consegnare, sset.set[clienti_online]);
 			msg.hdr.op = TXT_MESSAGE;
 			// il messaggio viene recapitato ai client connessi
 			pthread_mutex_lock(&connected_mutex);
@@ -220,6 +226,8 @@ void* worker(void* useless_arg) {
 			// viene poi aggiunto alla history di tutti
 			append_all(msg);
 			answer(fd, OP_OK);
+			update_stat(&sset, messaggi_da_consegnare, -sset.set[clienti_online]);
+			update_stat(&sset, messaggi_consegnati, sset.set[clienti_online]);
 		} break;
 	/*-------------------------POSTFILE_OP-------------------------------*/
 		case POSTFILE_OP: {
@@ -233,7 +241,7 @@ void* worker(void* useless_arg) {
 			// messaggio contenente la mmap del file
 			message_t fmsg;
 			if (readData(fd, &fmsg.data) < 0) {
-				perror("readData\n");
+				perror("readData");
 				answer(fd, OP_FAIL);
 				break;
 			}
@@ -248,21 +256,21 @@ void* worker(void* useless_arg) {
 
 			int outfd = open(file_name, O_WRONLY | O_APPEND | O_CREAT, 0644);
 			if (write(outfd, mappedfile, mappedsize) < 0) {
-				perror("write salvando il file\n");
+				perror("write salvando il file");
 				answer(fd, OP_FAIL);
 				break;
 			}	
 			close(outfd);
+			munmap(fmsg.data.buf, fmsg.data.hdr.len);
 			
 			msg.hdr.op = FILE_MESSAGE;
 			// se il ricevente è online il messaggio gli viene inviato
-			if (user2->fd != -1) {
-				sendRequest(user2->fd, &msg);
-			}
-			// in ogni caso viene inviato alla cronologia di entrambi			
-			append_msg_nickname(user1, msg);
+			if (user2->fd != -1) sendRequest(user2->fd, &msg);
+			
+			// in ogni caso viene inviato alla cronologia del ricevente			
 			append_msg_nickname(user2, msg);
 			answer(fd, OP_OK);
+			update_stat(&sset, file_da_consegnare, 1);
 		} break;
 		
 	/*---------------------GETFILE_OP--------------------------------------*/
@@ -272,7 +280,7 @@ void* worker(void* useless_arg) {
 			char* mappedfile;
 			
 			if (reqfd < 0) {
-				perror("open\n");
+				perror("open");
 				answer(fd, OP_NO_SUCH_FILE);
 				break;
 			}
@@ -290,6 +298,8 @@ void* worker(void* useless_arg) {
 			rmsg.data.buf = mappedfile;
 			
 			sendRequest(fd, &rmsg);
+			update_stat(&sset, file_da_consegnare, -1);
+			update_stat(&sset, file_consegnati, 1);
 		} break;
 		
 	/*------------------------GETPREVMSGS_OP------------------------------*/
@@ -327,16 +337,30 @@ void* worker(void* useless_arg) {
 				break;
 			}
 			if (remove_hash(htab, sender) < 0) {
-				perror("remove_hash\n");
+				perror("remove_hash");
 				answer(fd, OP_FAIL);
 				break;
 			}
 			
 			answer(fd, OP_OK);
+			update_stat(&sset, utenti_registrati, -1);
 		} break;			
 	/*-------------------------------------------------------------------*/		
 		default: break;
 		}
+		
+		// se raggiungo questa porzione di codice allora devo comunicare
+		// al listener di continuare ad ascoltare questo fd
+		pthread_mutex_lock(&connected_mutex);
+		connected_fd[fd] = 1;
+		// scrivo sulla pipe per destare la select
+		char* tmp_buf = "1";
+		if (write(5, tmp_buf, 1) < 0) {
+			perror("write");
+			pthread_mutex_lock(&connected_mutex);
+			exit(EXIT_FAILURE);
+		}
+		pthread_mutex_unlock(&connected_mutex);
 	}
 	
 	return NULL;

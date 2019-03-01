@@ -47,7 +47,7 @@ typedef struct stat_set_t {
  * @param sset: set di statistiche
  * @param stat: sttistica di cui effettuare l'update
  */
-void update_stat(stat_set_t* sset, stat_t stat);
+void update_stat(stat_set_t* sset, stat_t stat, int increment);
 
 /**
  * @function printStats

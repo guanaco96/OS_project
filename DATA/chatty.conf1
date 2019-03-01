@@ -13,7 +13,8 @@
 #             StatFileName = /tmp/chatty_stats_<numero-di-matricola>.txt
 
 # path utilizzato per la creazione del socket AF_UNIX
-UnixPath         = /tmp/chatty_socket
+UnixPath         = /tmp/chatty_socket5
+
 
 # numero massimo di connessioni pendenti
 MaxConnections	 = 32
@@ -31,10 +32,11 @@ MaxFileSize      = 1024
 MaxHistMsgs      = 16
 
 # directory dove memorizzare i files da inviare agli utenti 
-DirName          = /tmp/chatty 
+DirName          = /tmp/chatty
 
 # file nel quale verranno scritte le statistiche del server
 StatFileName     = /tmp/chatty_stats.txt
+
 # --------------------------------------------------------------
 
 # aggiungere altre opzioni necessarie da qui in poi

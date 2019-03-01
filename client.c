@@ -313,11 +313,16 @@ static int execute_receive(int connfd, operation_t *o) {
     }
     for(size_t i=c; i<m; ++i) {
         message_t msg;
+/*--------------------------------MODIFICA DEL CLIENT------------------------------*/
+        int nred;
         // leggo header e data
-        if (readMsg(connfd, &msg) == -1) {
+        if ((nred = readMsg(connfd, &msg)) == -1) {
             perror("reply data");
             return -1; 
-        }        
+        }
+        
+        if (nred == 0) return 0;       
+        
         switch(msg.hdr.op) {
         case TXT_MESSAGE: {
             printf("[%s:] %s\n", msg.hdr.sender, (char*)msg.data.buf);

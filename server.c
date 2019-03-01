@@ -78,8 +78,8 @@ void* listener(void* useless_arg) {
 	// inizializzo il set dei fd da asoltare
 	fd_set set, rdset;
 	FD_ZERO(&set);
-	FD_SET(3, &set);
-	FD_SET(4, &set);
+	FD_SET(3, &set); // socket
+	FD_SET(4, &set); // read end della pipe
 	
 	listen(3, SOMAXCONN);
 	
@@ -88,17 +88,15 @@ void* listener(void* useless_arg) {
 		// assegno a rdset i fd disponibili per I/O
 		rdset = set;
 		if (select(max_fd + 1, &rdset, NULL, NULL, NULL) < 0) {
-			perror("Errore nella select del listener\n");
+			perror("Errore nella select del listener");
 			exit(EXIT_FAILURE);
 		}
 		
 		// Comunicazione interna sulla pipe
 		if (FD_ISSET(4, &rdset)) {
-			// Leggo dati inutili, il loro scopo è solo 
-			// rendere il fd read della pipe selezionabile
-			// per segnalare che ci sono nuovi fd liberi
+			// Leggo dati inutili, il loro scopo è solo sbloccare la select
 			if (read(4, useless_buf, ThreadsInPool) < 0) {
-				perror("Errore leggendo la Pipe\n");
+				perror("Errore leggendo la Pipe");
 				exit(EXIT_FAILURE);
 			}
 			
@@ -116,12 +114,11 @@ void* listener(void* useless_arg) {
 		if (FD_ISSET(3, &rdset)) {
 			int new_fd = accept(3, NULL, NULL);
 			
-			// caso in cui c'è un tentativo di connessione
-			// oltre il limite, gli chiudo il file e lo conto
-			// tra gli errori nelle statistiche dato che in ops.h
-			// non c'è un messaggio di errore previsto per questo
+			// caso in cui c'è un tentativo di connessione oltre il limite, gli 
+			// chiudo il file e lo conto tra gli errori nelle statistiche dato 
+			// che in ops.h non c'è un messaggio di errore previsto per questo
 			if (new_fd > 5 + MaxConnections) {
-				update_stat(&sset, messaggi_di_errore);
+				update_stat(&sset, messaggi_di_errore, 1);
 				close(new_fd);
 			} else {
 				FD_SET(new_fd, &set);
@@ -165,13 +162,13 @@ int main(int argc, char* argv[]) {
 	
 	// Alloco ed inizializzo connected_fd a zero
 	if ((connected_fd = calloc(MaxConnections + 6, sizeof(int))) < 0) {
-		perror("Errore calloc\n");
+		perror("Errore calloc");
 		return -1;
 	}
 	
 	// inizializzo fd_to_nick
 	if ((fd_to_nick = calloc(MaxConnections + 6, sizeof(char*))) < 0) {
-		perror("Errore calloc\n");
+		perror("Errore calloc");
 		return -1;
 	}
 	
@@ -186,14 +183,14 @@ int main(int argc, char* argv[]) {
 	// inizializzo i file descriptors per il socket
 	int sock_fd;
 	if ((sock_fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-		perror("Errore creando il Socket\n");
+		perror("Errore creando il Socket");
 		return -1;
 	}
 	
 	// reidnirizzo il file descriptor del socket su 3
 	if (sock_fd != 3) {
 		if (dup2(sock_fd, 3) < 0) {
-			perror("Errore reindirizzando sock_fd su 3\n");
+			perror("Errore reindirizzando sock_fd su 3");
 			return -1;
 		}
 		close(sock_fd);
@@ -207,28 +204,28 @@ int main(int argc, char* argv[]) {
 		unlink(UnixPath);
 	#endif
 	if (bind(3,  (struct sockaddr*) &sa, sizeof(sa)) < 0) {
-		perror("Errore binding Socket\n");
+		perror("Errore binding Socket");
 		return -1;
 	}
 		
 	// inizializzo il fd per la pipe
 	int pipe_fd[2];
 	if (pipe(pipe_fd) < 0) {
-		perror("Errore creazione pipe\n");
+		perror("Errore creazione pipe");
 		return -1;
 	}
 	
 	// reindirizzo pipe read e write sui fd 4 e 5 rispettivamente
 	if (pipe_fd[0] != 4) {
 		if (dup2(pipe_fd[0], 4) < 0) {
-			perror("Errore reindirizzamento pipe_fd[0] read su 4\n");
+			perror("Errore reindirizzamento pipe_fd[0] read su 4");
 			return -1;
 		}
 		close(pipe_fd[0]);
 	}
 	if (pipe_fd[1] != 5) {
 		if (dup2(pipe_fd[1], 5) < 0) {
-			perror("Errore reindirizzamento pipe_fd[1] write su 5\n");
+			perror("Errore reindirizzamento pipe_fd[1] write su 5");
 			return -1;
 		}
 		close(pipe_fd[1]);
@@ -310,22 +307,29 @@ int main(int argc, char* argv[]) {
 			char* tmp_buf = "1";
 			
 			// scrive sulla pipe interna per fare uscire il listener dalla select
-			if (write(4, tmp_buf, 1) < 0) {
+			if (write(5, tmp_buf, 1) < 0) {
 				perror("Errore nello scrivere la pipe interna");
 				return -1;
 			}
+			
+			// effettua il join degli altri threads
+			pthread_join(listener_th, NULL);
+			for (int i = 0; i < ThreadsInPool; i++) {
+				pthread_join(worker_th[i], NULL);
+			}
+			
 		}
 	}	
 /*----------------------------------------------------------------------------*/
 
 /*----------------------------PULIZIA FINALE----------------------------------*/
-
 	// Elimino il bind del Socket
 	unlink(UnixPath);
-	// Elimino i fd di socket e pipe
+	// Chiudo socket e pipe interna
 	close(3);
 	close(4);
-	close(5);	
+	close(5);
+	close(6);
 	// Distruggo i mutex
 	pthread_mutex_destroy(&(sset.mutex));
 	// Dealloco queue e hash table
