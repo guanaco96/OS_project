@@ -47,8 +47,10 @@ extern int MaxFileSize;
 // aggiuinge un nickname alla mappa fd_to_nickname
 void add_nick(int fd, char* nick) {
 	pthread_mutex_lock(&connected_mutex);
-	fd_to_nick[fd] = malloc((strlen(nick) + 1) * sizeof(char));
-	strcpy(fd_to_nick[fd], nick);
+	if (fd_to_nick[fd] == NULL) {
+		fd_to_nick[fd] = malloc((strlen(nick) + 1) * sizeof(char));
+		strcpy(fd_to_nick[fd], nick);
+	}
 	pthread_mutex_unlock(&connected_mutex);
 }
 
@@ -124,20 +126,25 @@ void* worker(void* useless_arg) {
 			if (user) user->fd = -1;
 			
 			pthread_mutex_lock(&connected_mutex);
-			if (fd_to_nick[fd]) free(fd_to_nick[fd]);
-			fd_to_nick[fd] = NULL;
+			if (fd_to_nick[fd]) {
+				free(fd_to_nick[fd]);
+				fd_to_nick[fd] = NULL;
+			}
 			pthread_mutex_unlock(&connected_mutex);
 			
 			close(fd);
-			update_stat(&sset, clienti_online, -1);
 			continue;
 		}
-		
+				
 		op_t op = msg.hdr.op;
 		char* sender = msg.hdr.sender;
 		char* receiver = msg.data.hdr.receiver;
 		char* text = msg.data.buf;
 		int text_len = msg.data.hdr.len;
+		
+		#ifdef DEBUG
+			print_message(&msg);
+		#endif
 		
 		// se il messaggio è troppo lungo
 		if (text_len > MaxMsgSize) {
@@ -180,8 +187,7 @@ void* worker(void* useless_arg) {
 			user->fd = fd;
 			add_nick(fd, sender);
 			answer(fd, OP_OK);
-			send_list(fd);
-			update_stat(&sset, clienti_online, 1);			
+			send_list(fd);			
 		} break;
 	/*-----------------------------POSTTXT_OP-----------------------------*/
 		case POSTTXT_OP: {
@@ -193,7 +199,6 @@ void* worker(void* useless_arg) {
 				break;
 			}
 			
-			update_stat(&sset, messaggi_da_consegnare, 1);
 			msg.hdr.op = TXT_MESSAGE;
 			
 			// caso in cui il messaggio è troppo lungo
@@ -204,12 +209,15 @@ void* worker(void* useless_arg) {
 			
 			// se il ricevente è online il messaggio gli viene inviato
 			// altrimenti viene soltanto salvato nella cronologia
-			if (user2->fd != -1) sendRequest(user2->fd, &msg);
-
+			if (user2->fd != -1) {
+				sendRequest(user2->fd, &msg);
+				update_stat(&sset, messaggi_consegnati, 1);
+			} else {
+				update_stat(&sset, messaggi_da_consegnare, 1);
+			}
+			
 			append_msg_nickname(user2, msg);
 			answer(fd, OP_OK);
-			update_stat(&sset, messaggi_da_consegnare, -1);
-			update_stat(&sset, messaggi_consegnati, 1);
 		} break;
 	/*-----------------------------POSTTXTALL_OP--------------------------*/
 		case POSTTXTALL_OP: {
@@ -221,20 +229,21 @@ void* worker(void* useless_arg) {
 				break;
 			}
 			
-			update_stat(&sset, messaggi_da_consegnare, sset.set[clienti_online]);
+			update_stat(&sset, messaggi_da_consegnare, sset.set[utenti_registrati]);
 			msg.hdr.op = TXT_MESSAGE;
 			// il messaggio viene recapitato ai client connessi
 			pthread_mutex_lock(&connected_mutex);
 			for (int i = 6; i < MaxConnections + 6; i++) {
 				if (fd_to_nick[i] == NULL) continue;
 				sendRequest(i, &msg);
+				update_stat(&sset, messaggi_consegnati, 1);
+				update_stat(&sset, messaggi_da_consegnare, -1);
 			}
 			pthread_mutex_unlock(&connected_mutex);
 			// viene poi aggiunto alla history di tutti
 			append_all(msg);
 			answer(fd, OP_OK);
-			update_stat(&sset, messaggi_da_consegnare, -sset.set[clienti_online]);
-			update_stat(&sset, messaggi_consegnati, sset.set[clienti_online]);
+			
 		} break;
 	/*-------------------------POSTFILE_OP-------------------------------*/
 		case POSTFILE_OP: {
@@ -359,7 +368,14 @@ void* worker(void* useless_arg) {
 			
 			answer(fd, OP_OK);
 			update_stat(&sset, utenti_registrati, -1);
-		} break;			
+		} break;
+	
+	// In the following two cases worker just repost the message.	
+	/*------------------TEXT_MESSAGE || FILE_MESSAGE----------------------*/
+		case TXT_MESSAGE:
+		case FILE_MESSAGE: {
+			sendRequest(fd, &msg);
+		} break;
 	/*-------------------------------------------------------------------*/		
 		default: break;
 		}

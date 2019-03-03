@@ -50,7 +50,7 @@ static size_t      msglen=0;
 
 // usage function
 static void use(const char * filename) {
-    fprintf(stderr, 
+		fprintf(stderr, 
             "use:\n"
             " %s -l unix_socket_path -k nick -c nick -[gad] group -t milli -S msg:to -s file:to -R n -h\n"
             "  -l specifica il socket dove il server e' in ascolto\n"
@@ -191,9 +191,9 @@ static int execute_requestreply(int connfd, operation_t *o) {
     while(!ackok) {
         // aspetto di ricevere la risposta alla richiesta
         if (readHeader(connfd, &msg.hdr) <= 0) {
-            perror("reply header");
+		    perror("reply header");
             return -1;
-        }
+        }   
         
         // differenti tipi di risposta che posso ricevere
         switch(msg.hdr.op) {

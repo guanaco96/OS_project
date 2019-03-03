@@ -48,7 +48,7 @@ int openConnection(char* path, unsigned int ntimes, unsigned int secs) {
 	
 int readHeader(long fd, message_hdr_t *hdr) {
 	int nred = read(fd, (void*) hdr, sizeof(message_hdr_t));
-	if (nred < 0) {
+	if (nred < 0 && errno != EINTR && errno !=EAGAIN) {
 		perror("readHeader");
 		return -1;
 	}
@@ -58,7 +58,7 @@ int readHeader(long fd, message_hdr_t *hdr) {
 
 int readData(long fd, message_data_t *data) {
 	int nred_hdr = read(fd, (void*) &data->hdr, sizeof(message_data_hdr_t));
-	if (nred_hdr < 0) {		
+	if (nred_hdr < 0 && errno != EINTR && errno !=EAGAIN) {		
 		perror("readData");
 		return -1;
 	}
@@ -66,7 +66,7 @@ int readData(long fd, message_data_t *data) {
 	data->buf = malloc(data->hdr.len * sizeof(char));
 	
 	int nred_data = read(fd, (void*) data->buf, data->hdr.len * sizeof(char));
-	if (nred_data < 0) {		
+	if (nred_data < 0 && errno != EINTR && errno !=EAGAIN) {		
 		perror("readData");
 		return -1;
 	}
@@ -81,7 +81,7 @@ int readMsg(long fd, message_t *msg) {
 
 int sendHeader(long fd, message_hdr_t *hdr) {
 	int nwrote = write(fd, (void*) hdr, sizeof(message_hdr_t));
-	if (nwrote < 0) perror("sendHeader");
+	if (nwrote < 0 && errno != EINTR && errno !=EAGAIN) perror("sendHeader");
 	if (nwrote == 0) fprintf(stderr, "Inviato header vuoto\n");
 	
 	return nwrote;
@@ -90,12 +90,12 @@ int sendHeader(long fd, message_hdr_t *hdr) {
 
 int sendData(long fd, message_data_t *data) {
 	int nred_hdr = write(fd, (void*) &data->hdr, sizeof(message_data_hdr_t));
-	if (nred_hdr < 0) {
+	if (nred_hdr < 0 && errno != EINTR && errno !=EAGAIN) {
 		perror("sendData");
 		return -1;
 	}
 	int nred_data = write(fd, (void*) data->buf, data->hdr.len * sizeof(char));
-	if (nred_data < 0) {
+	if (nred_data < 0 && errno != EINTR && errno !=EAGAIN) {
 		perror("sendData");
 		return -1;
 	}	

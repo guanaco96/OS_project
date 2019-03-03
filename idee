@@ -7,7 +7,13 @@
 3) messaggi di errore == "too many fds || //TODELETE answering some failure"
 
 ------------------------------------------------------------------------------------------------------
-4) 
+4) **********************STATO*****ATTUALE***************
+
+	readHeader ci da "connection reset by peers"
+	evidentemente ci sono delle race conditions
+	leggere bene il test prima di iniziare a debuggare
+	dirottare provvisoriamente "use" del client su qualcosa di meno ingombrante
+	
 
 ------------------------------------------------------------------------------------------------------
 5) KNOWN BUGS:
@@ -23,7 +29,7 @@ HO MODIFICATO IL CLIENT
 ------------------------------------------------------------------------------------------------------
 6) TODECLARE: ho cambiato il file in testconf.sh sostituendo chattylib.a
 con chatty, che giustamente supera il limite dei 50Kb per ottenere gli 
-errori voluti dal test.
+errori voluti dal test. (Analogamente ho fatto per teststress.sh)
 
 
 ------------------------------------------------------------------------------------------------------
@@ -38,7 +44,11 @@ controlla di aver letto tutti i bytes e in caso contrario riavvia la
 lettura. 
 
 -------------------------------------------------------------------------------------------------------------
-
+9) LAMENTELE: il client stampa il numero delle operazioni in modo 
+inconsistente quando queste falliscono e quando queste hanno successo:
+nel primo caso stampa il numero definito in op_t mentre nel secondo
+stampa la posizione dell'operazione tra le richieste del client.
+Questo ha reso il debugging un po' noioso prima di scoprirlo.
 
 
 

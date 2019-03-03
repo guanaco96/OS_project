@@ -13,8 +13,7 @@
 #             StatFileName = /tmp/chatty_stats_<numero-di-matricola>.txt
 
 # path utilizzato per la creazione del socket AF_UNIX
-UnixPath         = /tmp/chatty_socket5
-
+UnixPath         = /tmp/chatty_socket
 
 # numero massimo di connessioni pendenti
 MaxConnections	 = 32
