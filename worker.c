@@ -57,6 +57,11 @@ void add_nick(int fd, char* nick) {
 // invia alla connesione data da fd la lista dei client connessi
 void send_list(int fd) {
 	message_data_t data;
+	
+	#ifdef MAKE_VALGRIND_HAPPY
+		memset(&data, 0, sizeof(message_data_t));
+	#endif
+	
 	data.buf = calloc(MaxConnections * (MAX_NAME_LENGTH + 1), sizeof(char));
 	data.hdr.len = 0;
 	char* ptr = data.buf;
@@ -78,6 +83,11 @@ void send_list(int fd) {
 // invia una risposta al client contenente solo l'operazione
 void answer(int fd, op_t op) {
 	message_hdr_t reply;
+	
+	#ifdef MAKE_VALGRIND_HAPPY
+		memset(&reply, 0, sizeof(message_hdr_t));
+	#endif
+	
 	if (op == OP_FAIL ||
 		op == OP_NICK_ALREADY ||
 		op == OP_NICK_UNKNOWN ||
@@ -104,6 +114,20 @@ void append_all(message_t msg) {
 		}
 	}
 }
+
+char* make_name(char* text) { 
+	char* name = text;
+	char* s = text;
+	while (*s != '\0') {
+		if (*(s++) == '/') name = s;
+	}
+	
+	char* res = calloc(2*MaxMsgSize + 1, sizeof(char));
+	strcpy(res, DirName);
+	strcat(res, "/");
+	strcat(res, name);
+	return res;
+}
 	
 /*------------------------------------------------------------------------*/
 
@@ -111,7 +135,10 @@ void append_all(message_t msg) {
 
 void* worker(void* useless_arg) {
 	message_t msg;
-	memset(&msg, 0, sizeof(message_t));
+	
+	#ifdef MAKE_VALGRIND_HAPPY
+		memset(&msg, 0, sizeof(message_t));
+	#endif
 	
 	while (!loop_interrupt) {
 		// estrazione MT-safe dalla queue
@@ -141,11 +168,11 @@ void* worker(void* useless_arg) {
 		char* receiver = msg.data.hdr.receiver;
 		char* text = msg.data.buf;
 		int text_len = msg.data.hdr.len;
-		
+		/*
 		#ifdef DEBUG
 			print_message(&msg);
 		#endif
-		
+		*/
 		// se il messaggio è troppo lungo
 		if (text_len > MaxMsgSize) {
 			answer(fd, OP_MSG_TOOLONG);
@@ -187,7 +214,7 @@ void* worker(void* useless_arg) {
 			user->fd = fd;
 			add_nick(fd, sender);
 			answer(fd, OP_OK);
-			send_list(fd);			
+			send_list(fd);		
 		} break;
 	/*-----------------------------POSTTXT_OP-----------------------------*/
 		case POSTTXT_OP: {
@@ -256,6 +283,11 @@ void* worker(void* useless_arg) {
 			}
 			// messaggio contenente la mmap del file
 			message_t fmsg;
+			
+			#ifdef MAKE_VALGRIND_HAPPY
+				memset(&fmsg, 0, sizeof(message_t));
+			#endif
+	
 			if (readData(fd, &fmsg.data) < 0) {
 				perror("readData");
 				answer(fd, OP_FAIL);
@@ -271,12 +303,9 @@ void* worker(void* useless_arg) {
 			}
 			 
 			// file_name = "DirName/text"
-			char* file_name = calloc(2*MaxMsgSize + 1, sizeof(char));
-			strcpy(file_name, DirName);
-			strcat(file_name, "/");
-			strcat(file_name, text);
-
+			char* file_name = make_name(text);
 			int outfd = open(file_name, O_WRONLY | O_APPEND | O_CREAT, 0644);
+			
 			if (write(outfd, mappedfile, mappedsize) < 0) {
 				perror("write salvando il file");
 				answer(fd, OP_FAIL);
@@ -317,6 +346,12 @@ void* worker(void* useless_arg) {
 			close(reqfd);
 			
 			message_t rmsg;
+			
+			#ifdef MAKE_VALGRIND_HAPPY
+				memset(&rmsg, 0, sizeof(message_t));
+			#endif
+	
+			
 			rmsg.hdr.op = OP_OK;
 			rmsg.data.hdr.len = text_len;
 			rmsg.data.buf = mappedfile;
@@ -336,6 +371,11 @@ void* worker(void* useless_arg) {
 			}
 			
 			message_t rmsg;
+			
+			#ifdef MAKE_VALGRIND_HAPPY
+				memset(&rmsg, 0, sizeof(message_t));
+			#endif
+			
 			rmsg.hdr.op = OP_OK;
 			rmsg.data.hdr.len = 1;
 			rmsg.data.buf = (char*) &user->size;

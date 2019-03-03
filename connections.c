@@ -45,32 +45,79 @@ int openConnection(char* path, unsigned int ntimes, unsigned int secs) {
 	return -1;
 }
 
+/**
+* @brief legge un numero fissato di bytes
+*
+* La lettura non viene compromessa da interruzioni in quanto
+* la funzione rientra nel ciclo fintanto che tutti i bytes non
+* sonon stati letti. Questo ci permette di rimediare alla non
+* atomicità di della System Call read.
+*
+* @param fd 	il file descriptor da cui leggere
+* @param buf	buffer puntante ad una regione opportunamente allocata
+* @param nbyte 	numero di bytes da leggere
+*
+* @return 	1 se ha letto tutti gli nbyte bytes
+* 			0 se il fd è chiuso
+			-1 in caso di errore
+*/
+
+int safe_read(int fd, char* buf, int nbyte) {
+	int nred = read(fd, buf, nbyte);
+	while (nbyte > 0) {
+		if (nred < 0 && errno != EINTR) {
+			return -1;
+		}
+		if (nred == 0) return 0;
+		
+		buf += nred;
+		nbyte -= nred;
+	}
+	return 1;
+}
+
+/**
+* @brief scrive un numero fissato di bytes
+*
+* La scrittura non viene compromessa da interruzioni in quanto
+* la funzione rientra nel ciclo fintanto che tutti i bytes non
+* sonon stati scritti. Questo ci permette di rimediare alla non
+* atomicità di della System Call write.
+*
+* @param fd 	il file descriptor su cui scrivere
+* @param buf	buffer puntante la regione da scrivere sul fd
+* @param nbyte 	numero di bytes da scrivere
+*
+* @return 	1 se ha scritto tutti gli nbyte bytes
+* 			0 se il fd è chiuso
+			-1 in caso di errore
+*/
+
+int safe_write(int fd, char* buf, int nbyte) {
+	int nwritten = write(fd, buf, nbyte);
+	while (nbyte > 0) {
+		if (nwritten < 0 && errno != EINTR) {
+			return -1;
+		}
+		if (nwritten == 0) return 0;
+		
+		buf += nwritten;
+		nbyte -= nwritten;
+	}
+	return 1;
+}
 	
 int readHeader(long fd, message_hdr_t *hdr) {
-	int nred = read(fd, (void*) hdr, sizeof(message_hdr_t));
-	if (nred < 0 && errno != EINTR && errno !=EAGAIN) {
-		perror("readHeader");
-		return -1;
-	}
-	return nred;
+	return safe_read(fd, (char*) hdr, sizeof(message_hdr_t));
 }
 
 
 int readData(long fd, message_data_t *data) {
-	int nred_hdr = read(fd, (void*) &data->hdr, sizeof(message_data_hdr_t));
-	if (nred_hdr < 0 && errno != EINTR && errno !=EAGAIN) {		
-		perror("readData");
-		return -1;
-	}
+	int res = safe_read(fd, (char*) &data->hdr, sizeof(message_data_hdr_t));
 	
-	data->buf = malloc(data->hdr.len * sizeof(char));
+	data->buf = (data->hdr.len > 0) ? calloc(data->hdr.len, sizeof(char)) : NULL;
 	
-	int nred_data = read(fd, (void*) data->buf, data->hdr.len * sizeof(char));
-	if (nred_data < 0 && errno != EINTR && errno !=EAGAIN) {		
-		perror("readData");
-		return -1;
-	}
-	return nred_hdr + nred_data;
+	return (res <= 0) ? res : safe_read(fd, data->buf, data->hdr.len); 
 }
 
 
@@ -80,32 +127,19 @@ int readMsg(long fd, message_t *msg) {
 }
 
 int sendHeader(long fd, message_hdr_t *hdr) {
-	int nwrote = write(fd, (void*) hdr, sizeof(message_hdr_t));
-	if (nwrote < 0 && errno != EINTR && errno !=EAGAIN) perror("sendHeader");
-	if (nwrote == 0) fprintf(stderr, "Inviato header vuoto\n");
-	
-	return nwrote;
+	return safe_write(fd, (char*) hdr, sizeof(message_hdr_t));
 }
 	
 
 int sendData(long fd, message_data_t *data) {
-	int nred_hdr = write(fd, (void*) &data->hdr, sizeof(message_data_hdr_t));
-	if (nred_hdr < 0 && errno != EINTR && errno !=EAGAIN) {
-		perror("sendData");
-		return -1;
-	}
-	int nred_data = write(fd, (void*) data->buf, data->hdr.len * sizeof(char));
-	if (nred_data < 0 && errno != EINTR && errno !=EAGAIN) {
-		perror("sendData");
-		return -1;
-	}	
-	return nred_hdr + nred_data;
-}	
+	int res = safe_write(fd, (char*) &data->hdr, sizeof(message_data_hdr_t));
+	return (res <= 0) ? res : safe_write(fd, data->buf, data->hdr.len); 
+}
 
 
 int sendRequest(long fd, message_t *msg) {
-	int nwrote = sendHeader(fd, &(msg->hdr));
-	return (nwrote <= 0) ? nwrote : sendData(fd, &(msg->data));
+	int nwritten = sendHeader(fd, &(msg->hdr));
+	return (nwritten <= 0) ? nwritten : sendData(fd, &(msg->data));
 }
 
 

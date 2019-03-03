@@ -37,7 +37,10 @@ void setData(message_data_t *data, char *rcv, const char *buf, unsigned int len)
 }
 
 void destroy_message(message_t* msg) {
-	free(msg->data.buf);
+	if(msg->data.buf) {
+		free(msg->data.buf);
+		msg->data.buf = NULL;
+	}	
 }
 
 void print_message(message_t* msg) {
