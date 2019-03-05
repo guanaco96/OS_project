@@ -318,7 +318,7 @@ void* worker(void* useless_arg) {
 				answer(fd, OP_MSG_TOOLONG);
 				break;
 			}
-			 
+			
 			// file_name = "DirName/text"
 			char* file_name = make_name(text);
 			int outfd = open(file_name, O_WRONLY | O_TRUNC | O_CREAT, 0644);
@@ -327,7 +327,8 @@ void* worker(void* useless_arg) {
 				perror("write salvando il file");
 				answer(fd, OP_FAIL);
 				break;
-			}	
+			}
+	
 			close(outfd);
 			free(mappedfile);
 			free(file_name);

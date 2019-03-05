@@ -175,7 +175,7 @@ static int execute_requestreply(int connfd, operation_t *o) {
         return -1;
     }
     if (mappedfile) { // devo inviare il file
-        message_data_t data;
+		message_data_t data;
         setData(&data, "", mappedfile, o->size);
         if (sendData(connfd, &data) == -1) { // invio il contenuto del file
             perror("sending data");
