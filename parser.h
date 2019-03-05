@@ -43,7 +43,7 @@ char* strtok_r(char*, const char*, char**);
  * @return -1 se c'è errore, 0 altrimenti
  */
 int parse(char* file_name) {
-	FILE * fp = fopen(file_name, "r");
+	FILE* fp = fopen(file_name, "r");
 	if(!fp) {
 		perror("errore aprendo il file di configurazione\n");
 		return -1;
@@ -132,6 +132,7 @@ int parse(char* file_name) {
 		
 		// se raggiungiamo questa porzione di codice c'è un errore di formattazione
 		fprintf(stderr, "errore di formattazione file di configurazione\n");
+		fclose(fp);
 		return -1;
 	}			
 	

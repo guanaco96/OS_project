@@ -447,6 +447,11 @@ void* worker(void* useless_arg) {
 		}
 		}
 		
+		if (msg.data.buf) {
+			free(msg.data.buf);
+			msg.data.buf = NULL;
+		}
+		
 		// se raggiungo questa porzione di codice allora devo comunicare
 		// al listener di continuare ad ascoltare questo fd
 		pthread_mutex_lock(&connected_mutex);

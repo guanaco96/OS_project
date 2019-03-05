@@ -351,6 +351,10 @@ int main(int argc, char* argv[]) {
 	free(connected_fd);
 	free(fd_to_nick);
 	free(mtx_arr);
-		
+	free(UnixPath);
+	free(DirName);
+	free(StatFileName);
+	
+			
 	return 0;
 }
