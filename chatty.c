@@ -58,11 +58,14 @@ int MaxMsgSize;
 // connected_fd[i] != 0 sse il fd #i è nuovamente disponibile all'ascolto  
 int* connected_fd;
 
-// associa a fd il nickname connesso su tale file descriptor se esiste, NUll altrimenti
+// associa a fd il nickname connesso su tale file descriptor se esiste, NULL altrimenti
 char** fd_to_nick; 
 
 // mutex per sincronizzare le strutture connected_fd e fd_to_nick
 pthread_mutex_t connected_mutex;
+
+// array di mutex relativi ai fd su cui si connettono i client
+pthread_mutex_t* mtx_arr;
 
 /*-----------------------------------------------------------------*/
 
@@ -119,7 +122,7 @@ void* listener(void* useless_arg) {
 			// chiudo il file e lo conto tra gli errori nelle statistiche dato 
 			// che in ops.h non c'è un messaggio di errore previsto per questo
 			if (new_fd > 5 + MaxConnections) {
-				update_stat(&sset, messaggi_di_errore, 1);
+				//update_stat(&sset, messaggi_di_errore, 1);
 				close(new_fd);
 			} else {
 				FD_SET(new_fd, &set);
@@ -179,6 +182,10 @@ int main(int argc, char* argv[]) {
 	// inizializzo i mutex
 	pthread_mutex_init(&(sset.mutex), NULL);
 	pthread_mutex_init(&connected_mutex, NULL);
+	mtx_arr = calloc(MaxConnections + 6, sizeof(pthread_mutex_t));
+	for (int i = 0; i < MaxConnections + 6; i++) {
+		pthread_mutex_init(mtx_arr + i, NULL);
+	} 
 	
 	// creo le strutture dati comuni a tutti i thread
 	queue = create_queue(MAX_QUEUE_LEN);
@@ -343,6 +350,7 @@ int main(int argc, char* argv[]) {
 	// Dealloco vettori allocati dinamicamente
 	free(connected_fd);
 	free(fd_to_nick);
+	free(mtx_arr);
 		
 	return 0;
 }

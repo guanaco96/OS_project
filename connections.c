@@ -63,9 +63,9 @@ int openConnection(char* path, unsigned int ntimes, unsigned int secs) {
 */
 
 int safe_read(int fd, char* buf, int nbyte) {
-	int nred = read(fd, buf, nbyte);
+	int nred;
 	while (nbyte > 0) {
-		if (nred < 0 && errno != EINTR) {
+		if ((nred = read(fd, buf, nbyte)) < 0 && errno != EINTR) {
 			return -1;
 		}
 		if (nred == 0) return 0;
@@ -94,9 +94,9 @@ int safe_read(int fd, char* buf, int nbyte) {
 */
 
 int safe_write(int fd, char* buf, int nbyte) {
-	int nwritten = write(fd, buf, nbyte);
+	int nwritten;
 	while (nbyte > 0) {
-		if (nwritten < 0 && errno != EINTR) {
+		if ((nwritten = write(fd, buf, nbyte)) < 0 && errno != EINTR) {
 			return -1;
 		}
 		if (nwritten == 0) return 0;

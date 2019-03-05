@@ -37,12 +37,12 @@ extern char loop_interrupt;
 extern int* connected_fd;
 extern char** fd_to_nick;
 extern pthread_mutex_t connected_mutex;
+extern pthread_mutex_t* mtx_arr;
 
 extern int MaxConnections;
 extern int MaxMsgSize;
 extern char* DirName;
 extern int MaxFileSize;
-
 
 // aggiuinge un nickname alla mappa fd_to_nickname
 void add_nick(int fd, char* nick) {
@@ -56,28 +56,33 @@ void add_nick(int fd, char* nick) {
 
 // invia alla connesione data da fd la lista dei client connessi
 void send_list(int fd) {
-	message_data_t data;
+	message_t msg;
 	
 	#ifdef MAKE_VALGRIND_HAPPY
-		memset(&data, 0, sizeof(message_data_t));
+		memset(&msg, 0, sizeof(message_t));
 	#endif
 	
-	data.buf = calloc(MaxConnections * (MAX_NAME_LENGTH + 1), sizeof(char));
-	data.hdr.len = 0;
-	char* ptr = data.buf;
+	msg.data.buf = calloc(MaxConnections * (MAX_NAME_LENGTH + 1), sizeof(char));
+	msg.data.hdr.len = 0;
+	msg.hdr.op = OP_OK;
+	char* ptr = msg.data.buf;
 	
 	pthread_mutex_lock(&connected_mutex);
 	for (int j = 6; j < MaxConnections + 6; j++) {
 		if (fd_to_nick[j]) {
 			strncpy(ptr, fd_to_nick[j], MAX_NAME_LENGTH + 1);
 			ptr += MAX_NAME_LENGTH + 1;
-			data.hdr.len += MAX_NAME_LENGTH + 1;
+			msg.data.hdr.len += MAX_NAME_LENGTH + 1;
 		}
 	}	
 	pthread_mutex_unlock(&connected_mutex);
 	
-	sendData(fd, &data);
-	free(data.buf);
+	pthread_mutex_lock(&mtx_arr[fd]);
+	sendRequest(fd, &msg);
+	pthread_mutex_unlock(&mtx_arr[fd]);
+	
+	free(msg.data.buf);
+	
 }
 
 // invia una risposta al client contenente solo l'operazione
@@ -95,9 +100,11 @@ void answer(int fd, op_t op) {
 		op == OP_NO_SUCH_FILE) {
 			update_stat(&sset, messaggi_di_errore, 1);
 		}
-	
 	reply.op = op;
+	
+	pthread_mutex_lock(&mtx_arr[fd]);			
 	sendHeader(fd, &reply);
+	pthread_mutex_unlock(&mtx_arr[fd]);
 }
 
 // inserisce il messaggio nella cronologia di tutti gli utenti registrati
@@ -148,7 +155,11 @@ void* worker(void* useless_arg) {
 		if (fd < 0) return NULL;
 		
 		// leggo il messaggio e controllo se l'utente è ancora online
-		if (readMsg(fd, &msg) == 0) {
+		pthread_mutex_lock(&mtx_arr[fd]);
+		int is_open = readMsg(fd, &msg);
+		pthread_mutex_unlock(&mtx_arr[fd]);
+		
+		if (!is_open) {
 			nickname_t* user = find_hash(htab, fd_to_nick[fd]);
 			if (user) user->fd = -1;
 			
@@ -168,11 +179,7 @@ void* worker(void* useless_arg) {
 		char* receiver = msg.data.hdr.receiver;
 		char* text = msg.data.buf;
 		int text_len = msg.data.hdr.len;
-		/*
-		#ifdef DEBUG
-			print_message(&msg);
-		#endif
-		*/
+		
 		// se il messaggio è troppo lungo
 		if (text_len > MaxMsgSize) {
 			answer(fd, OP_MSG_TOOLONG);
@@ -198,7 +205,6 @@ void* worker(void* useless_arg) {
 			// se va tutto a buon fine
 			user->fd = fd;
 			add_nick(fd, sender);
-			answer(fd, OP_OK);
 			send_list(fd);
 			update_stat(&sset, utenti_registrati, 1);
 		} break;
@@ -213,7 +219,6 @@ void* worker(void* useless_arg) {
 			// se va tutto a buon fine
 			user->fd = fd;
 			add_nick(fd, sender);
-			answer(fd, OP_OK);
 			send_list(fd);		
 		} break;
 	/*-----------------------------POSTTXT_OP-----------------------------*/
@@ -237,7 +242,11 @@ void* worker(void* useless_arg) {
 			// se il ricevente è online il messaggio gli viene inviato
 			// altrimenti viene soltanto salvato nella cronologia
 			if (user2->fd != -1) {
+				
+				pthread_mutex_lock(&mtx_arr[user2->fd]);
 				sendRequest(user2->fd, &msg);
+				pthread_mutex_unlock(&mtx_arr[user2->fd]);
+				
 				update_stat(&sset, messaggi_consegnati, 1);
 			} else {
 				update_stat(&sset, messaggi_da_consegnare, 1);
@@ -262,7 +271,11 @@ void* worker(void* useless_arg) {
 			pthread_mutex_lock(&connected_mutex);
 			for (int i = 6; i < MaxConnections + 6; i++) {
 				if (fd_to_nick[i] == NULL) continue;
+
+				pthread_mutex_lock(&mtx_arr[i]);
 				sendRequest(i, &msg);
+				pthread_mutex_unlock(&mtx_arr[i]);
+
 				update_stat(&sset, messaggi_consegnati, 1);
 				update_stat(&sset, messaggi_da_consegnare, -1);
 			}
@@ -282,19 +295,23 @@ void* worker(void* useless_arg) {
 				break;
 			}
 			// messaggio contenente la mmap del file
-			message_t fmsg;
+			message_data_t fdata;
 			
 			#ifdef MAKE_VALGRIND_HAPPY
-				memset(&fmsg, 0, sizeof(message_t));
+				memset(&fdata, 0, sizeof(message_data_t));
 			#endif
-	
-			if (readData(fd, &fmsg.data) < 0) {
+			
+			pthread_mutex_lock(&mtx_arr[fd]);
+			if (readData(fd, &fdata) < 0) {
 				perror("readData");
 				answer(fd, OP_FAIL);
+				pthread_mutex_unlock(&mtx_arr[fd]);
 				break;
 			}
-			char* mappedfile = fmsg.data.buf;
-			int mappedsize = fmsg.data.hdr.len;
+			pthread_mutex_unlock(&mtx_arr[fd]);
+			
+			char* mappedfile = fdata.buf;
+			int mappedsize = fdata.hdr.len;
 			
 			// caso in cui il file è troppo grande
 			if (mappedsize > MaxFileSize * 1024) {
@@ -304,7 +321,7 @@ void* worker(void* useless_arg) {
 			 
 			// file_name = "DirName/text"
 			char* file_name = make_name(text);
-			int outfd = open(file_name, O_WRONLY | O_APPEND | O_CREAT, 0644);
+			int outfd = open(file_name, O_WRONLY | O_TRUNC | O_CREAT, 0644);
 			
 			if (write(outfd, mappedfile, mappedsize) < 0) {
 				perror("write salvando il file");
@@ -312,13 +329,16 @@ void* worker(void* useless_arg) {
 				break;
 			}	
 			close(outfd);
-			munmap(fmsg.data.buf, fmsg.data.hdr.len);
 			free(mappedfile);
 			free(file_name);
 			
 			msg.hdr.op = FILE_MESSAGE;
 			// se il ricevente è online il messaggio gli viene inviato
-			if (user2->fd != -1) sendRequest(user2->fd, &msg);
+			if (user2->fd != -1) {
+				pthread_mutex_lock(&mtx_arr[user2->fd]);
+				sendRequest(user2->fd, &msg);
+				pthread_mutex_unlock(&mtx_arr[user2->fd]);
+			}
 			
 			// in ogni caso viene inviato alla cronologia del ricevente			
 			append_msg_nickname(user2, msg);
@@ -356,7 +376,10 @@ void* worker(void* useless_arg) {
 			rmsg.data.hdr.len = text_len;
 			rmsg.data.buf = mappedfile;
 			
+			pthread_mutex_lock(&mtx_arr[fd]);
 			sendRequest(fd, &rmsg);
+			pthread_mutex_unlock(&mtx_arr[fd]);
+			
 			update_stat(&sset, file_da_consegnare, -1);
 			update_stat(&sset, file_consegnati, 1);
 		} break;
@@ -379,18 +402,20 @@ void* worker(void* useless_arg) {
 			rmsg.hdr.op = OP_OK;
 			rmsg.data.hdr.len = 1;
 			rmsg.data.buf = (char*) &user->size;
-			sendRequest(fd, &rmsg);
 			
+			pthread_mutex_lock(&mtx_arr[fd]);
+			sendRequest(fd, &rmsg);
 			int j = user->first;
 			for (int i = 0; i < user->size; i++) {
 				sendRequest(fd, &user->history[j]);
 				j = (j + 1) % user->max_size;
 			}
+			pthread_mutex_unlock(&mtx_arr[fd]);
+			
 		} break;
 		
 	/*-------------------------USRLIST_OP-------------------------------*/
 		case USRLIST_OP: {
-			answer(fd, OP_OK);
 			send_list(fd);
 		} break;
 	/*-----------------------UNREGISTER_OP-----------------------------*/
@@ -408,16 +433,17 @@ void* worker(void* useless_arg) {
 			
 			answer(fd, OP_OK);
 			update_stat(&sset, utenti_registrati, -1);
-		} break;
-	
-	// In the following two cases worker just repost the message.	
-	/*------------------TEXT_MESSAGE || FILE_MESSAGE----------------------*/
-		case TXT_MESSAGE:
-		case FILE_MESSAGE: {
-			sendRequest(fd, &msg);
-		} break;
+		} break;	
 	/*-------------------------------------------------------------------*/		
-		default: break;
+		default: {
+			// caso in cui ho letto un messaggio al posto del client
+			if (op >= 20) {
+				pthread_mutex_lock(&mtx_arr[fd]);
+				sendRequest(fd, &msg);
+				pthread_mutex_unlock(&mtx_arr[fd]);
+			}
+			break;
+		}
 		}
 		
 		// se raggiungo questa porzione di codice allora devo comunicare
