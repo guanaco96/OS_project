@@ -550,7 +550,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "ERRORE: riprovo a riconnettermi...\n");
         return -1;
     }
-
+	
     // ignoro SIGPIPE per evitare di essere terminato da una scrittura su un socket chiuso
     struct sigaction s;
     memset(&s,0,sizeof(s));    

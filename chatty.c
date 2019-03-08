@@ -122,7 +122,12 @@ void* listener(void* useless_arg) {
 			// chiudo il file e lo conto tra gli errori nelle statistiche dato 
 			// che in ops.h non c'è un messaggio di errore previsto per questo
 			if (new_fd > 5 + MaxConnections) {
-				//update_stat(&sset, messaggi_di_errore, 1);
+				// se ho raggiunto il limite di connessione simultanee invio
+				// OP_FAIL e chiudo la connesione
+				message_t failmsg;
+				readMsg(new_fd, &failmsg);
+				failmsg.hdr.op = OP_FAIL;
+				sendHeader(new_fd, &failmsg.hdr);
 				close(new_fd);
 			} else {
 				FD_SET(new_fd, &set);
