@@ -8,7 +8,7 @@
  * @author Lorenzo Beretta, 536242, loribere@gmail.com
  */
  
-#include"stat.h"
+#include"stats.h"
 
 void update_stat(stat_set_t* sset, stat_t stat, int increment) {
 	pthread_mutex_lock(&(sset->mutex));

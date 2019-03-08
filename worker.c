@@ -26,7 +26,7 @@
 #include "queue.h"
 #include "ops.h"	
 #include "hashtable.h"
-#include "stat.h"
+#include "stats.h"
 
 // variabili esterne documentate in server.c
 extern stat_set_t sset;

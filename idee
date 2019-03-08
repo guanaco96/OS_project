@@ -27,9 +27,11 @@ tuendo errore anche quando una read mi ritorna 0 (== EOF).
 HO MODIFICATO IL CLIENT
 
 ------------------------------------------------------------------------------------------------------
-6) TODECLARE: ho cambiato il file in testconf.sh sostituendo chattylib.a
+6) TODECLARE:
+i) ho cambiato il file in testconf.sh sostituendo chattylib.a
 con chatty, che giustamente supera il limite dei 50Kb per ottenere gli 
-errori voluti dal test. (Analogamente ho fatto per teststress.sh)
+errori voluti dal test. (Analogamente ho fatto per teststress.sh e per
+testleaks.sh)
 
 
 ------------------------------------------------------------------------------------------------------

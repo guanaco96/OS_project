@@ -1,5 +1,5 @@
 /**
- * @file server.c
+ * @file chatty.c
  * @brief Main del programma.
  *
  * Si dichiara che il contenuto di questo file è in ogni sua parte
@@ -27,7 +27,7 @@
 #include "queue.h"
 #include "ops.h"	
 #include "hashtable.h"
-#include "stat.h"
+#include "stats.h"
 #include "parser.h"
 
 // header della funzione worker, implementata in "worker.c"
@@ -173,13 +173,13 @@ int main(int argc, char* argv[]) {
 	mkdir(DirName, 0777);
 	
 	// Alloco ed inizializzo connected_fd a zero
-	if ((connected_fd = calloc(MaxConnections + 6, sizeof(int))) < 0) {
+	if ((connected_fd = calloc(MaxConnections + 6, sizeof(int))) == NULL) {
 		perror("Errore calloc");
 		return -1;
 	}
 	
 	// inizializzo fd_to_nick
-	if ((fd_to_nick = calloc(MaxConnections + 6, sizeof(char*))) < 0) {
+	if ((fd_to_nick = calloc(MaxConnections + 6, sizeof(char*))) == NULL) {
 		perror("Errore calloc");
 		return -1;
 	}

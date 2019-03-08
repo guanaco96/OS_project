@@ -8,7 +8,7 @@
  *
  * @author Lorenzo Beretta, 536242, loribere@gmail.com
  */
- 
+#include <pthread.h> 
 #include "message.h"
 
 #ifndef NICKNAME_H
