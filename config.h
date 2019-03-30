@@ -20,7 +20,7 @@
 #define MAX_QUEUE_LEN 10000
 
 // numero di caselle della tebella di hash
-#define HASH_NBUCKETS 10000
+#define HASH_NBUCKETS 100000
 
 
 
